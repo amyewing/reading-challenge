@@ -58,6 +58,17 @@ export interface Entry {
   profiles: Pick<Profile, 'display_name'> | null;
 }
 
+/** A book someone might read for a prompt, and why */
+export interface Consideration {
+  id: string;
+  prompt_id: string;
+  user_id: string;
+  reason: string | null;
+  created_at: string;
+  books: Book | null;
+  profiles: Pick<Profile, 'display_name'> | null;
+}
+
 export interface Me {
   id: string;
   name: string;

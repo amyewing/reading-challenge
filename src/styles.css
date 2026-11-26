@@ -105,8 +105,15 @@ h1 .badge, h3 .badge { vertical-align: middle; font-family: 'Inter', system-ui, 
 .progress-list { list-style: none; padding: 0; margin: 0; }
 .progress-list li { display: grid; grid-template-columns: 160px 1fr 48px; gap: 0.75rem; align-items: center; padding: 0.3rem 0; }
 .progress-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bar { height: 10px; background: var(--line); border-radius: 99px; overflow: hidden; }
-.bar span { display: block; height: 100%; background: var(--done); border-radius: 99px; transition: width 0.3s; }
+.bar { height: 10px; background: var(--line); border-radius: 99px; overflow: hidden; display: flex; }
+.bar span { display: block; height: 100%; transition: width 0.3s; }
+.bar-done, .swatch-done { background: var(--done); }
+.bar-planned, .swatch-planned { background: #a9c7ae; }
+.legend { margin: 0.5rem 0 0; display: flex; align-items: center; gap: 0.35rem; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.swatch-planned { margin-left: 0.6rem; }
+.toggle { flex-direction: row; align-items: center; gap: 0.4rem; font-weight: 400; color: var(--muted); }
+.toggle input { width: auto; }
 @media (max-width: 520px) { .progress-list li { grid-template-columns: 100px 1fr 40px; } }
 
 .prompts { list-style: none; padding: 0; margin: 0; }
@@ -120,9 +127,22 @@ h1 .badge, h3 .badge { vertical-align: middle; font-family: 'Inter', system-ui, 
 .prompt.done .prompt-num { background: var(--done); color: #fff; }
 .my-entry { display: flex; gap: 0.75rem; align-items: flex-start; }
 .notes { white-space: pre-wrap; margin: 0.35rem 0 0; }
+.prompt-actions { margin-top: 0.75rem; }
+.my-entry + .prompt-actions { margin-top: 0.5rem; }
+.considering { margin-top: 0.75rem; background: var(--paper); border-radius: 8px; padding: 0.6rem 0.75rem; }
+.considering .eyebrow { margin-bottom: 0.4rem; }
+.considering ul, .others ul { list-style: none; padding: 0; margin: 0.5rem 0 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.considering ul { margin: 0; }
+.considering li, .others li { display: flex; gap: 0.6rem; align-items: flex-start; }
+.idea-actions { gap: 0.5rem; flex-wrap: nowrap; }
+.idea-actions button.small { padding: 0.2rem 0.6rem; }
+.add-idea { white-space: nowrap; flex: none; }
 .others { margin-top: 0.75rem; border-top: 1px dashed var(--line); padding-top: 0.5rem; }
-.others ul { list-style: none; padding: 0; margin: 0.5rem 0 0; display: flex; flex-direction: column; gap: 0.6rem; }
-.others li { display: flex; gap: 0.6rem; align-items: flex-start; }
+.others-label { margin: 0.75rem 0 0; color: var(--muted); }
+@media (max-width: 520px) {
+  .considering li, .others li { flex-wrap: wrap; }
+  .idea-actions, .add-idea { margin-left: calc(36px + 0.6rem); }
+}
 
 .cover { width: 56px; height: 84px; object-fit: cover; border-radius: 4px; background: var(--line); flex: none; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
 .cover-sm { width: 36px; height: 54px; }

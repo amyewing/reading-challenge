@@ -111,6 +111,20 @@ create table entries (
 );
 create index entries_challenge_idx on entries (challenge_id);
 
+-- Books a person is considering for a prompt while they plan, with why
+create table considerations (
+  id            uuid primary key default gen_random_uuid(),
+  challenge_id  uuid not null references challenges(id) on delete cascade,
+  prompt_id     uuid not null references prompts(id) on delete cascade,
+  user_id       text not null default current_user_id() references profiles(id) on delete cascade,
+  book_id       uuid not null references books(id),
+  reason        text,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  unique (prompt_id, user_id, book_id)
+);
+create index considerations_challenge_idx on considerations (challenge_id);
+
 -- ---------------------------------------------------------------------
 -- Helper functions (SECURITY DEFINER so policies don't recurse)
 -- ---------------------------------------------------------------------
@@ -301,6 +315,7 @@ alter table challenges    enable row level security;
 alter table prompts       enable row level security;
 alter table books         enable row level security;
 alter table entries       enable row level security;
+alter table considerations enable row level security;
 
 -- profiles: see yourself and people you share a group with; edit yourself
 create policy profiles_select on profiles for select
@@ -368,6 +383,23 @@ create policy entries_update on entries for update
     and exists (select 1 from prompts p where p.id = prompt_id and p.challenge_id = entries.challenge_id)
   );
 create policy entries_delete on entries for delete using (user_id = (select current_user_id()));
+
+-- considerations: anyone who can see the challenge sees everyone's lists; you manage
+-- only your own. Allowed on drafts too, so a challenge's creator can plan while writing it.
+create policy considerations_select on considerations for select using (challenge_visible(challenge_id));
+create policy considerations_insert on considerations for insert with check (
+  user_id = (select current_user_id())
+  and challenge_visible(challenge_id)
+  and exists (select 1 from prompts p where p.id = prompt_id and p.challenge_id = considerations.challenge_id)
+);
+create policy considerations_update on considerations for update
+  using (user_id = (select current_user_id()))
+  with check (
+    user_id = (select current_user_id())
+    and challenge_visible(challenge_id)
+    and exists (select 1 from prompts p where p.id = prompt_id and p.challenge_id = considerations.challenge_id)
+  );
+create policy considerations_delete on considerations for delete using (user_id = (select current_user_id()));
 
 -- ---------------------------------------------------------------------
 -- The API's restricted role
