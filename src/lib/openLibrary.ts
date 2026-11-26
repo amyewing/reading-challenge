@@ -8,10 +8,14 @@ export interface BookSearchResult {
   coverUrl: string | null;
 }
 
-export async function searchBooks(query: string, signal?: AbortSignal): Promise<BookSearchResult[]> {
+/** Search everything, or only titles, or only author names */
+export type SearchMode = 'any' | 'title' | 'author';
+
+export async function searchBooks(query: string, mode: SearchMode = 'any', signal?: AbortSignal): Promise<BookSearchResult[]> {
   const url = new URL('https://openlibrary.org/search.json');
-  url.searchParams.set('q', query);
-  url.searchParams.set('limit', '10');
+  url.searchParams.set(mode === 'any' ? 'q' : mode, query);
+  // An author search lists their books, so show more of them
+  url.searchParams.set('limit', mode === 'author' ? '25' : '10');
   url.searchParams.set('fields', 'key,title,author_name,first_publish_year,cover_i');
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error('Book search is unavailable right now');

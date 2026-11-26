@@ -35,10 +35,9 @@ export default function LogBookDialog({ prompt, existing, initialBook, onClose, 
     setSaving(true);
     setError(null);
     try {
-      await api(`/api/prompts/${prompt.id}/my-entry`, {
-        method: 'PUT',
-        body: { book: bookPayload(picked), finishedOn: finishedOn || null, rating, notes: notes.trim() || null },
-      });
+      const body = { book: bookPayload(picked), finishedOn: finishedOn || null, rating, notes: notes.trim() || null };
+      if (existing) await api(`/api/entries/${existing.id}`, { method: 'PUT', body });
+      else await api(`/api/prompts/${prompt.id}/entries`, { method: 'POST', body });
       onSaved();
     } catch (err: any) {
       setError(err.message);
@@ -49,7 +48,7 @@ export default function LogBookDialog({ prompt, existing, initialBook, onClose, 
   async function remove() {
     if (!existing || !confirm('Remove this book from the prompt?')) return;
     try {
-      await api(`/api/prompts/${prompt.id}/my-entry`, { method: 'DELETE' });
+      await api(`/api/entries/${existing.id}`, { method: 'DELETE' });
       onSaved();
     } catch (err: any) {
       setError(err.message);
@@ -59,7 +58,7 @@ export default function LogBookDialog({ prompt, existing, initialBook, onClose, 
   return (
     <div className="overlay" onClick={onClose}>
       <form className="dialog" onClick={(e) => e.stopPropagation()} onSubmit={save}>
-        <p className="eyebrow">Log a book for</p>
+        <p className="eyebrow">{existing ? 'A book you logged for' : 'Log a book for'}</p>
         <h2>{prompt.title}</h2>
 
         <BookPicker value={picked} onChange={setPicked} />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { searchBooks, type BookSearchResult } from '../lib/openLibrary';
+import { searchBooks, type BookSearchResult, type SearchMode } from '../lib/openLibrary';
 import type { Book } from '../lib/types';
 import BookCover from './BookCover';
 
@@ -33,11 +33,19 @@ interface Props {
 }
 
 /** Search Open Library (or type a book in), then show the chosen book. */
+const MODES: { mode: SearchMode; label: string; placeholder: string }[] = [
+  { mode: 'any', label: 'Anything', placeholder: 'Title, author, or both' },
+  { mode: 'title', label: 'Title', placeholder: 'e.g. The Night Circus' },
+  { mode: 'author', label: 'Author', placeholder: 'e.g. Toni Morrison' },
+];
+
 export default function BookPicker({ value, onChange, label = 'Find your book' }: Props) {
   const [query, setQuery] = useState('');
+  const [mode, setMode] = useState<SearchMode>('any');
   const [results, setResults] = useState<BookSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [searched, setSearched] = useState(''); // the mode and query the results are for
 
   // Search as the user types (debounced)
   useEffect(() => {
@@ -50,7 +58,8 @@ export default function BookPicker({ value, onChange, label = 'Find your book' }
       setSearching(true);
       setSearchError(null);
       try {
-        setResults(await searchBooks(query.trim(), ctrl.signal));
+        setResults(await searchBooks(query.trim(), mode, ctrl.signal));
+        setSearched(`${mode}:${query}`);
       } catch (e: any) {
         if (e.name !== 'AbortError') setSearchError(e.message);
       } finally {
@@ -61,17 +70,37 @@ export default function BookPicker({ value, onChange, label = 'Find your book' }
       clearTimeout(t);
       ctrl.abort();
     };
-  }, [query]);
+  }, [query, mode]);
 
   if (!value) {
+    const current = MODES.find((m) => m.mode === mode)!;
     return (
       <>
-        <label>
-          {label}
-          <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Title, author, or both" />
-        </label>
+        <div className="search-head">
+          <label className="grow">
+            {label}
+            <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={current.placeholder} />
+          </label>
+          <div className="segmented" role="radiogroup" aria-label="Search by">
+            {MODES.map((m) => (
+              <button
+                key={m.mode}
+                type="button"
+                role="radio"
+                aria-checked={mode === m.mode}
+                className={mode === m.mode ? 'on' : ''}
+                onClick={() => setMode(m.mode)}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
         {searching && <p className="small muted">Searching…</p>}
         {searchError && <p className="error small">{searchError}</p>}
+        {!searching && searched === `${mode}:${query}` && results.length === 0 && (
+          <p className="small muted">No matches. Try searching by {mode === 'author' ? 'title' : 'author'} instead.</p>
+        )}
         <ul className="search-results">
           {results.map((r) => (
             <li key={r.key}>

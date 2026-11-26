@@ -25,7 +25,7 @@ The database connection string is a secret that lives only on the server. The br
 - Anyone in a group can create a challenge: a title, dates, and prompts (type them one by one or paste several at once). Prompts can have optional details.
 - New challenges start as **drafts**, visible only to their creator and the group's admins. Edit them as often as you like (reword, reorder, add or remove prompts), then **launch** them for the group. Launched challenges can still be edited, but a prompt with logged books can't be removed.
 - **Consider** books while planning: add books you might read for a prompt, with why they'd fit. Everyone in the group sees each other's lists, and can add someone else's idea (or a book someone already read) to their own list with one click. When you log a book from your list, it comes off the list.
-- Log a book against a prompt: search Open Library or type it in, then add a finish date, a rating and notes
+- Log a book against a prompt: search Open Library (by anything, title only, or author only) or type it in, then add a finish date, a rating and notes. Several different books can count toward the same prompt.
 - See everyone's progress (books read, plus prompts they have a book in mind for), and what others read or are considering for each prompt. Hide the prompts you've finished to focus on what's left.
 - Leave a group. Challenge creators and admins can delete a challenge
 
@@ -64,7 +64,7 @@ Check everything compiles with `npm run typecheck`.
 
 ### Neon (database)
 1. Create a project.
-2. On a new database, run [db/schema.sql](db/schema.sql) in the SQL Editor. The existing database was created with an earlier version and has been brought up to date with the files in [db/migrations/](db/migrations/), in order (002, 003, 004).
+2. On a new database, run [db/schema.sql](db/schema.sql) in the SQL Editor. The existing database was created with an earlier version and has been brought up to date with the files in [db/migrations/](db/migrations/), in order (002, 003, 004, 005). Read each file's header first: 005 must be applied only after the API that goes with it is deployed.
 3. For `DATABASE_URL`, use **Connect**, role `neondb_owner`, with **Connection pooling** on.
 4. The Neon **Data API** is not used and should stay disabled.
 

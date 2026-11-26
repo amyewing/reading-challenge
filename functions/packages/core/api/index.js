@@ -6418,7 +6418,7 @@ route("PUT", "/api/challenges/:challengeId", async ({ q, params, body }) => {
     input.endsOn
   ]);
   const existing = await q(
-    `select p.id, p.title, (select count(*)::int from entries e where e.prompt_id = p.id) as entry_count
+    `select p.id, p.title, (select count(distinct e.user_id)::int from entries e where e.prompt_id = p.id) as entry_count
      from prompts p where p.challenge_id = $1`,
     [challenge.id]
   );
@@ -6478,7 +6478,8 @@ route("GET", "/api/challenges/:challengeId", async ({ q, params }) => {
      from entries e
      join books b on b.id = e.book_id
      join profiles p on p.id = e.user_id
-     where e.challenge_id = $1`,
+     where e.challenge_id = $1
+     order by e.created_at`,
     [params.challengeId]
   );
   const considerations = await q(
@@ -6535,34 +6536,69 @@ async function resolveBook(q, book) {
   ]);
   return row.id;
 }
-route("PUT", "/api/prompts/:promptId/my-entry", async ({ q, params, body }) => {
+var MAX_BOOKS_PER_PROMPT = 20;
+var NOT_LAUNCHED = "This challenge hasn't been launched yet, so books can't be logged.";
+function entryDetails(body) {
+  return {
+    finishedOn: date(body.finishedOn, "Finished date"),
+    rating: rating(body.rating),
+    notes: text(body.notes, "Notes", { max: 5e3 })
+  };
+}
+async function checkNotLoggedTwice(q, promptId, bookId, exceptEntryId) {
+  const [dup] = await q(
+    `select 1 from entries where prompt_id = $1 and user_id = current_user_id() and book_id = $2
+       and ($3::uuid is null or id <> $3::uuid)`,
+    [promptId, bookId, exceptEntryId]
+  );
+  if (dup) throw new HttpError(409, "You've already logged that book for this prompt.");
+}
+async function graduateConsideration(q, promptId, bookId) {
+  await q("delete from considerations where prompt_id = $1 and user_id = current_user_id() and book_id = $2", [
+    promptId,
+    bookId
+  ]);
+}
+route("POST", "/api/prompts/:promptId/entries", async ({ q, params, body }) => {
   const prompt = await visiblePrompt(q, params.promptId);
-  if (prompt.status !== "active") throw badRequest("This challenge hasn't been launched yet, so books can't be logged.");
+  if (prompt.status !== "active") throw badRequest(NOT_LAUNCHED);
   const bookId = await resolveBook(q, body.book);
+  const details = entryDetails(body);
+  await checkNotLoggedTwice(q, params.promptId, bookId, null);
+  const [{ n }] = await q("select count(*)::int as n from entries where prompt_id = $1 and user_id = current_user_id()", [
+    params.promptId
+  ]);
+  if (n >= MAX_BOOKS_PER_PROMPT) throw badRequest(`You can log up to ${MAX_BOOKS_PER_PROMPT} books for one prompt.`);
   const [entry] = await q(
     `insert into entries (challenge_id, prompt_id, user_id, book_id, finished_on, rating, notes)
      values ($1, $2, current_user_id(), $3, $4, $5, $6)
-     on conflict (prompt_id, user_id) do update
-       set book_id = excluded.book_id, finished_on = excluded.finished_on,
-           rating = excluded.rating, notes = excluded.notes, updated_at = now()
      returning id`,
-    [
-      prompt.challenge_id,
-      params.promptId,
-      bookId,
-      date(body.finishedOn, "Finished date"),
-      rating(body.rating),
-      text(body.notes, "Notes", { max: 5e3 })
-    ]
+    [prompt.challenge_id, params.promptId, bookId, details.finishedOn, details.rating, details.notes]
   );
-  await q("delete from considerations where prompt_id = $1 and user_id = current_user_id() and book_id = $2", [
-    params.promptId,
-    bookId
-  ]);
+  await graduateConsideration(q, params.promptId, bookId);
   return { id: entry.id };
 });
-route("DELETE", "/api/prompts/:promptId/my-entry", async ({ q, params }) => {
-  await q("delete from entries where prompt_id = $1 and user_id = current_user_id()", [params.promptId]);
+route("PUT", "/api/entries/:entryId", async ({ q, params, body }) => {
+  const [entry] = await q(
+    `select e.id, e.prompt_id, c.status from entries e join challenges c on c.id = e.challenge_id
+     where e.id = $1 and e.user_id = current_user_id()`,
+    [params.entryId]
+  );
+  if (!entry) throw notFound("That logged book was not found. Reload and try again.");
+  if (entry.status !== "active") throw badRequest(NOT_LAUNCHED);
+  const bookId = await resolveBook(q, body.book);
+  const details = entryDetails(body);
+  await checkNotLoggedTwice(q, entry.prompt_id, bookId, entry.id);
+  await q(
+    `update entries set book_id = $2, finished_on = $3, rating = $4, notes = $5, updated_at = now()
+     where id = $1`,
+    [entry.id, bookId, details.finishedOn, details.rating, details.notes]
+  );
+  await graduateConsideration(q, entry.prompt_id, bookId);
+  return { id: entry.id };
+});
+route("DELETE", "/api/entries/:entryId", async ({ q, params }) => {
+  await q("delete from entries where id = $1 and user_id = current_user_id()", [params.entryId]);
   return { ok: true };
 });
 var MAX_CONSIDERING_PER_PROMPT = 20;

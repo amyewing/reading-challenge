@@ -128,7 +128,9 @@ h1 .badge, h3 .badge { vertical-align: middle; font-family: 'Inter', system-ui, 
 .my-entry { display: flex; gap: 0.75rem; align-items: flex-start; }
 .notes { white-space: pre-wrap; margin: 0.35rem 0 0; }
 .prompt-actions { margin-top: 0.75rem; }
-.my-entry + .prompt-actions { margin-top: 0.5rem; }
+.prompt-actions.quiet { gap: 0.5rem; }
+.prompt-actions.quiet button { font-size: 0.85rem; padding: 0.3rem 0.7rem; background: transparent; }
+.my-entries { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.75rem; }
 .considering { margin-top: 0.75rem; background: var(--paper); border-radius: 8px; padding: 0.6rem 0.75rem; }
 .considering .eyebrow { margin-bottom: 0.4rem; }
 .considering ul, .others ul { list-style: none; padding: 0; margin: 0.5rem 0 0; display: flex; flex-direction: column; gap: 0.6rem; }
@@ -156,6 +158,11 @@ h1 .badge, h3 .badge { vertical-align: middle; font-family: 'Inter', system-ui, 
 }
 .dialog h2 { margin-top: 0; }
 .dialog-actions { margin-top: 0.5rem; }
+.search-head { display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap; }
+.segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: none; }
+.segmented button { border: none; border-radius: 0; padding: 0.5rem 0.7rem; font-size: 0.875rem; background: #fff; color: var(--muted); }
+.segmented button + button { border-left: 1px solid var(--line); }
+.segmented button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .search-results { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.35rem; }
 .search-results button { display: flex; gap: 0.75rem; align-items: center; width: 100%; text-align: left; padding: 0.5rem; }
 .search-results span { display: flex; flex-direction: column; }

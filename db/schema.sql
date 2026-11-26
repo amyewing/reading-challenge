@@ -96,6 +96,7 @@ create table books (
 );
 
 -- A person logging a book against one prompt of a challenge
+-- (several different books can count toward the same prompt)
 create table entries (
   id            uuid primary key default gen_random_uuid(),
   challenge_id  uuid not null references challenges(id) on delete cascade,
@@ -107,7 +108,7 @@ create table entries (
   notes         text,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now(),
-  unique (prompt_id, user_id)
+  constraint entries_prompt_user_book_key unique (prompt_id, user_id, book_id)
 );
 create index entries_challenge_idx on entries (challenge_id);
 

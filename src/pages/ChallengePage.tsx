@@ -44,7 +44,11 @@ export default function ChallengePage() {
   const considerations = data.data.considerations ?? [];
   const canManage = !!challenge.can_manage;
   const isDraft = challenge.status === 'draft';
-  const myEntries = new Map(entries.filter((e) => e.user_id === me.id).map((e) => [e.prompt_id, e]));
+  // Your logged books, by prompt (several books can count toward one prompt)
+  const myEntries = new Map<string, Entry[]>();
+  for (const e of entries) {
+    if (e.user_id === me.id) myEntries.set(e.prompt_id, [...(myEntries.get(e.prompt_id) ?? []), e]);
+  }
   const total = prompts.length;
 
   const progress = members
@@ -161,11 +165,12 @@ export default function ChallengePage() {
       {hideFinished && visiblePrompts.length === 0 && <p className="muted">You've finished every prompt. 🎉</p>}
       <ol className="prompts">
         {visiblePrompts.map(({ prompt, number }) => {
-          const mine = myEntries.get(prompt.id) ?? null;
+          const mine = myEntries.get(prompt.id) ?? [];
+          const done = mine.length > 0;
           const myList = considerations.filter((c) => c.prompt_id === prompt.id && c.user_id === me.id);
           const othersRead = entries.filter((e) => e.prompt_id === prompt.id && e.user_id !== me.id);
           const othersConsidering = considerations.filter((c) => c.prompt_id === prompt.id && c.user_id !== me.id);
-          const onMyList = new Set([...myList.map((c) => c.books?.id), mine?.books?.id].filter(Boolean));
+          const onMyList = new Set([...myList, ...mine].map((x) => x.books?.id).filter(Boolean));
           const othersCount = othersRead.length + othersConsidering.length;
           const open = expanded[prompt.id];
 
@@ -181,7 +186,7 @@ export default function ChallengePage() {
             );
 
           return (
-            <li key={prompt.id} className={`prompt card ${mine ? 'done' : ''}`}>
+            <li key={prompt.id} className={`prompt card ${done ? 'done' : ''}`}>
               <div className="prompt-head">
                 <span className="prompt-num">{number}</span>
                 <div className="grow">
@@ -190,25 +195,31 @@ export default function ChallengePage() {
                 </div>
               </div>
 
-              {mine && (
-                <div className="my-entry">
-                  <BookCover book={mine.books} />
-                  <div className="grow">
-                    <strong>{mine.books?.title}</strong>
-                    {mine.books?.author && <div className="small muted">{mine.books.author}</div>}
-                    <div className="small">
-                      {mine.rating && '★'.repeat(mine.rating)}
-                      {mine.finished_on && <span className="muted"> · finished {new Date(mine.finished_on + 'T00:00:00').toLocaleDateString()}</span>}
-                    </div>
-                    {mine.notes && <p className="small notes">{mine.notes}</p>}
-                  </div>
-                  <button className="link" onClick={() => setDialog({ kind: 'log', prompt, entry: mine })}>Edit</button>
-                </div>
+              {mine.length > 0 && (
+                <ul className="my-entries">
+                  {mine.map((entry) => (
+                    <li key={entry.id} className="my-entry">
+                      <BookCover book={entry.books} />
+                      <div className="grow">
+                        <strong>{entry.books?.title}</strong>
+                        {entry.books?.author && <div className="small muted">{entry.books.author}</div>}
+                        <div className="small">
+                          {entry.rating && '★'.repeat(entry.rating)}
+                          {entry.finished_on && (
+                            <span className="muted"> · finished {new Date(entry.finished_on + 'T00:00:00').toLocaleDateString()}</span>
+                          )}
+                        </div>
+                        {entry.notes && <p className="small notes">{entry.notes}</p>}
+                      </div>
+                      <button className="link" onClick={() => setDialog({ kind: 'log', prompt, entry })}>Edit</button>
+                    </li>
+                  ))}
+                </ul>
               )}
 
               {myList.length > 0 && (
                 <div className="considering mine">
-                  <p className="eyebrow">{mine ? 'Also on your list' : 'You’re considering'}</p>
+                  <p className="eyebrow">{done ? 'Also on your list' : 'You’re considering'}</p>
                   <ul>
                     {myList.map((c) => (
                       <li key={c.id}>
@@ -219,7 +230,7 @@ export default function ChallengePage() {
                           {c.reason && <p className="small notes">{c.reason}</p>}
                         </div>
                         <div className="row idea-actions">
-                          {!isDraft && !mine && (
+                          {!isDraft && (
                             <button
                               className="small"
                               onClick={() => setDialog({ kind: 'log', prompt, entry: null, book: c.books })}
@@ -240,18 +251,19 @@ export default function ChallengePage() {
                 </div>
               )}
 
-              {!mine && (
-                <div className="row prompt-actions">
-                  {!isDraft && (
-                    <button className="primary" onClick={() => setDialog({ kind: 'log', prompt, entry: null })}>
-                      Log a book
-                    </button>
-                  )}
-                  <button onClick={() => setDialog({ kind: 'consider', prompt, consideration: null })}>
-                    Consider a book
+              <div className={`row prompt-actions ${done ? 'quiet' : ''}`}>
+                {!isDraft && (
+                  <button
+                    className={done ? '' : 'primary'}
+                    onClick={() => setDialog({ kind: 'log', prompt, entry: null })}
+                  >
+                    {done ? '+ Log another book' : 'Log a book'}
                   </button>
-                </div>
-              )}
+                )}
+                <button onClick={() => setDialog({ kind: 'consider', prompt, consideration: null })}>
+                  {done ? '+ Consider another' : 'Consider a book'}
+                </button>
+              </div>
 
               {othersCount > 0 && (
                 <div className="others">
