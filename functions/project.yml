@@ -1,0 +1,19 @@
+# DigitalOcean Functions project: the whole API is one web function, core/api.
+# App Platform routes /api/core/api/<path> to it (see .do/app.yaml).
+# The function file (packages/core/api.js) is a bundle built by `npm run build:api` —
+# rebuild and commit it whenever api/ changes.
+# Values below are filled from the functions component's environment in .do/app.yaml.
+environment:
+  DATABASE_URL: "${DATABASE_URL}"
+  KINDE_DOMAIN: "${KINDE_DOMAIN}"
+  KINDE_AUDIENCE: "${KINDE_AUDIENCE}"
+
+packages:
+  - name: core
+    functions:
+      - name: api
+        runtime: nodejs:22
+        web: raw
+        limits:
+          timeout: 15000
+          memory: 256

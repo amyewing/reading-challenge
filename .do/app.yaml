@@ -1,0 +1,61 @@
+# DigitalOcean App Platform spec: the React app as a static site, the API as one function.
+# Create the app in the DigitalOcean dashboard (or with
+# `doctl apps create --spec .do/app.yaml`). Set DATABASE_URL as an encrypted secret in the
+# dashboard — never put it in this file.
+name: reading-challenge
+
+static_sites:
+  - name: web
+    github:
+      repo: amyewing/reading-challenge
+      branch: main
+      deploy_on_push: true
+    build_command: npm ci && npm run build
+    output_dir: dist
+    catchall_document: index.html  # so links like /groups/123 work
+    envs:
+      - key: VITE_KINDE_CLIENT_ID
+        scope: BUILD_TIME
+        value: 5c4c291c58724b9594943007b774a8f1
+      - key: VITE_KINDE_DOMAIN  # switch to your Kinde custom domain once set up (see README)
+        scope: BUILD_TIME
+        value: https://amyewing.kinde.com
+      - key: VITE_KINDE_AUDIENCE
+        scope: BUILD_TIME
+        value: https://api.readingchallenge
+      - key: VITE_API_BASE
+        scope: BUILD_TIME
+        value: /api/core/api
+
+functions:
+  - name: api
+    github:
+      repo: amyewing/reading-challenge
+      branch: main
+      deploy_on_push: true
+    source_dir: functions
+    envs:
+      # App Platform requires every variable functions/project.yml names to be defined here.
+      - key: DATABASE_URL  # Neon pooled connection string; set as SECRET in the dashboard
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      - key: KINDE_DOMAIN  # must match the token issuer (your custom domain, once set up)
+        scope: RUN_AND_BUILD_TIME
+        value: https://amyewing.kinde.com
+      - key: KINDE_AUDIENCE
+        scope: RUN_AND_BUILD_TIME
+        value: https://api.readingchallenge
+
+ingress:
+  rules:
+    # App Platform strips /api; the next two segments pick the function (core/api).
+    - component:
+        name: api
+      match:
+        path:
+          prefix: /api
+    - component:
+        name: web
+      match:
+        path:
+          prefix: /
