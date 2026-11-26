@@ -6310,9 +6310,10 @@ route("GET", "/api/groups/:groupId", async ({ q, params }) => {
   );
   const challenges = await q(
     `select c.id, c.group_id, c.title, c.description, c.starts_on::text, c.ends_on::text, c.created_by,
+            c.status, c.launched_at,
             (select count(*)::int from prompts p where p.challenge_id = c.id) as prompt_count
      from challenges c where c.group_id = $1
-     order by c.created_at desc`,
+     order by (c.status = 'draft') desc, c.created_at desc`,
     [params.groupId]
   );
   return { group, members, challenges };
@@ -6355,24 +6356,111 @@ route("POST", "/api/invites/by-code/:code/accept", async ({ q, params }) => {
   const [row] = await q("select accept_invite($1) as group_id", [params.code]);
   return { groupId: row.group_id };
 });
-route("POST", "/api/groups/:groupId/challenges", async ({ q, params, body }) => {
-  const prompts = Array.isArray(body.prompts) ? body.prompts : [];
-  if (prompts.length > 200) throw badRequest("A challenge can have up to 200 prompts.");
-  const cleaned = prompts.map((p, i) => text(p, `Prompt ${i + 1}`, { max: 300 })).filter(Boolean);
-  if (!cleaned.length) throw badRequest("Add at least one prompt.");
-  const [row] = await q("select create_challenge($1, $2, $3, $4, $5, $6) as id", [
-    params.groupId,
-    text(body.title, "Title", { max: 150, required: true }),
-    text(body.description, "Description", { max: 2e3 }),
-    date(body.startsOn, "Start date"),
-    date(body.endsOn, "End date"),
-    cleaned
+function challengeInput(body) {
+  const raw = Array.isArray(body.prompts) ? body.prompts : [];
+  if (raw.length > 200) throw badRequest("A challenge can have up to 200 prompts.");
+  const prompts = [];
+  raw.forEach((p, i) => {
+    const item = typeof p === "string" ? { title: p } : p ?? {};
+    const title = text(item.title, `Prompt ${i + 1}`, { max: 300 });
+    if (!title) return;
+    const id = typeof item.id === "string" && new RegExp(`^${UUID}$`).test(item.id) ? item.id : null;
+    prompts.push({ id, title, description: text(item.description, `Prompt ${i + 1} details`, { max: 1e3 }) });
+  });
+  const startsOn = date(body.startsOn, "Start date");
+  const endsOn = date(body.endsOn, "End date");
+  if (startsOn && endsOn && endsOn < startsOn) throw badRequest("The end date is before the start date.");
+  return {
+    title: text(body.title, "Title", { max: 150, required: true }),
+    description: text(body.description, "Description", { max: 2e3 }),
+    startsOn,
+    endsOn,
+    prompts
+  };
+}
+async function manageableChallenge(q, challengeId) {
+  const [row] = await q("select id, group_id, status, can_manage_challenge(id) as can_manage from challenges where id = $1", [
+    challengeId
   ]);
-  return { id: row.id };
+  if (!row) throw notFound("This challenge doesn't exist or you can't see it.");
+  if (!row.can_manage) throw new HttpError(403, "Only the person who created this challenge or a group admin can change it.");
+  return row;
+}
+route("POST", "/api/groups/:groupId/challenges", async ({ q, params, body }) => {
+  const input = challengeInput(body);
+  const [challenge] = await q(
+    `insert into challenges (group_id, title, description, starts_on, ends_on, created_by, status)
+     values ($1, $2, $3, $4, $5, current_user_id(), 'draft')
+     returning id`,
+    [params.groupId, input.title, input.description, input.startsOn, input.endsOn]
+  );
+  for (const [i, p] of input.prompts.entries()) {
+    await q("insert into prompts (challenge_id, position, title, description) values ($1, $2, $3, $4)", [
+      challenge.id,
+      i + 1,
+      p.title,
+      p.description
+    ]);
+  }
+  return { id: challenge.id };
+});
+route("PUT", "/api/challenges/:challengeId", async ({ q, params, body }) => {
+  const challenge = await manageableChallenge(q, params.challengeId);
+  const input = challengeInput(body);
+  if (challenge.status === "active" && input.prompts.length === 0) {
+    throw badRequest("A launched challenge needs at least one prompt.");
+  }
+  await q("update challenges set title = $2, description = $3, starts_on = $4, ends_on = $5 where id = $1", [
+    challenge.id,
+    input.title,
+    input.description,
+    input.startsOn,
+    input.endsOn
+  ]);
+  const existing = await q(
+    `select p.id, p.title, (select count(*)::int from entries e where e.prompt_id = p.id) as entry_count
+     from prompts p where p.challenge_id = $1`,
+    [challenge.id]
+  );
+  const existingIds = new Set(existing.map((p) => p.id));
+  for (const p of input.prompts) {
+    if (p.id && !existingIds.has(p.id)) throw badRequest("One of the prompts no longer exists. Reload and try again.");
+  }
+  const keptIds = new Set(input.prompts.map((p) => p.id).filter(Boolean));
+  const removed = existing.filter((p) => !keptIds.has(p.id));
+  const blocked = removed.find((p) => p.entry_count > 0);
+  if (blocked) {
+    throw badRequest(
+      `"${blocked.title}" can't be removed because ${blocked.entry_count === 1 ? "someone has" : `${blocked.entry_count} people have`} logged a book for it.`
+    );
+  }
+  for (const p of removed) await q("delete from prompts where id = $1", [p.id]);
+  for (const [i, p] of input.prompts.entries()) {
+    if (p.id) {
+      await q("update prompts set position = $2, title = $3, description = $4 where id = $1", [p.id, i + 1, p.title, p.description]);
+    } else {
+      await q("insert into prompts (challenge_id, position, title, description) values ($1, $2, $3, $4)", [
+        challenge.id,
+        i + 1,
+        p.title,
+        p.description
+      ]);
+    }
+  }
+  return { id: challenge.id };
+});
+route("POST", "/api/challenges/:challengeId/launch", async ({ q, params }) => {
+  const challenge = await manageableChallenge(q, params.challengeId);
+  if (challenge.status === "active") return { ok: true };
+  const [{ n }] = await q("select count(*)::int as n from prompts where challenge_id = $1", [challenge.id]);
+  if (n === 0) throw badRequest("Add at least one prompt before launching.");
+  await q("update challenges set status = 'active', launched_at = now() where id = $1 and status = 'draft'", [challenge.id]);
+  return { ok: true };
 });
 route("GET", "/api/challenges/:challengeId", async ({ q, params }) => {
   const [challenge] = await q(
     `select c.id, c.group_id, c.title, c.description, c.starts_on::text, c.ends_on::text, c.created_by,
+            c.status, c.launched_at, can_manage_challenge(c.id) as can_manage,
             g.name as group_name
      from challenges c join groups g on g.id = c.group_id
      where c.id = $1`,
@@ -6409,8 +6497,12 @@ route("DELETE", "/api/challenges/:challengeId", async ({ q, params }) => {
   return { groupId: rows[0].group_id };
 });
 route("PUT", "/api/prompts/:promptId/my-entry", async ({ q, params, body }) => {
-  const [prompt] = await q("select challenge_id from prompts where id = $1", [params.promptId]);
+  const [prompt] = await q(
+    "select p.challenge_id, c.status from prompts p join challenges c on c.id = p.challenge_id where p.id = $1",
+    [params.promptId]
+  );
   if (!prompt) throw notFound("That prompt was not found.");
+  if (prompt.status !== "active") throw badRequest("This challenge hasn't been launched yet, so books can't be logged.");
   const book = body.book ?? {};
   let bookId;
   if (typeof book.id === "string") {

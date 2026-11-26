@@ -65,6 +65,10 @@ create table challenges (
   ends_on      date,
   created_by   text not null default current_user_id() references profiles(id),
   created_at   timestamptz not null default now(),
+  -- 'draft': only the creator and group admins can see it; nobody can log books yet.
+  -- 'active': launched — the whole group sees it and can log books.
+  status       text not null default 'draft' check (status in ('draft', 'active')),
+  launched_at  timestamptz,
   check (starts_on is null or ends_on is null or ends_on >= starts_on)
 );
 create index challenges_group_idx on challenges (group_id);
@@ -146,6 +150,23 @@ language sql stable security definer set search_path = public as $$
     where c.id = cid
       and (c.created_by = current_user_id() or is_group_admin(c.group_id))
   );
+$$;
+
+-- Can the current user see this challenge (and its prompts)?
+-- Launched challenges: any group member. Drafts: the creator and group admins.
+create or replace function challenge_visible(cid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from challenges c
+    where c.id = cid
+      and is_group_member(c.group_id)
+      and (c.status = 'active' or c.created_by = current_user_id() or is_group_admin(c.group_id))
+  );
+$$;
+
+create or replace function challenge_is_active(cid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from challenges where id = cid and status = 'active');
 $$;
 
 create or replace function shares_group_with(other text) returns boolean
@@ -235,29 +256,6 @@ begin
 end;
 $$;
 
--- Create a challenge and its prompts in one step (any group member)
-create or replace function create_challenge(
-  p_group_id    uuid,
-  p_title       text,
-  p_description text,
-  p_starts_on   date,
-  p_ends_on     date,
-  p_prompts     text[]
-) returns uuid language plpgsql security definer set search_path = public as $$
-declare cid uuid;
-begin
-  if not is_group_member(p_group_id) then raise exception 'You are not in this group'; end if;
-  insert into challenges (group_id, title, description, starts_on, ends_on, created_by)
-  values (p_group_id, trim(p_title), nullif(trim(p_description), ''), p_starts_on, p_ends_on, current_user_id())
-  returning id into cid;
-  insert into prompts (challenge_id, position, title)
-  select cid, ord, trim(t)
-  from unnest(p_prompts) with ordinality as x(t, ord)
-  where length(trim(t)) > 0;
-  return cid;
-end;
-$$;
-
 -- Add a book to the shared catalog (or reuse it), returning its id
 create or replace function upsert_book(
   p_title           text,
@@ -331,16 +329,20 @@ create policy invites_select on group_invites for select using (is_group_admin(g
 create policy invites_update on group_invites for update
   using (is_group_admin(group_id)) with check (is_group_admin(group_id));
 
--- challenges: members see and create; creator or admins edit/delete
-create policy challenges_select on challenges for select using (is_group_member(group_id));
+-- challenges: members see launched ones (drafts: creator and admins only);
+-- members create; creator or admins edit/delete
+create policy challenges_select on challenges for select using (
+  is_group_member(group_id)
+  and (status = 'active' or created_by = (select current_user_id()) or is_group_admin(group_id))
+);
 create policy challenges_insert on challenges for insert
   with check (created_by = (select current_user_id()) and is_group_member(group_id));
 create policy challenges_update on challenges for update
   using (can_manage_challenge(id)) with check (is_group_member(group_id));
 create policy challenges_delete on challenges for delete using (can_manage_challenge(id));
 
--- prompts: members see; challenge creator or admins manage
-create policy prompts_select on prompts for select using (is_group_member(challenge_group(challenge_id)));
+-- prompts: visible with their challenge; challenge creator or admins manage
+create policy prompts_select on prompts for select using (challenge_visible(challenge_id));
 create policy prompts_insert on prompts for insert with check (can_manage_challenge(challenge_id));
 create policy prompts_update on prompts for update
   using (can_manage_challenge(challenge_id)) with check (can_manage_challenge(challenge_id));
@@ -349,17 +351,20 @@ create policy prompts_delete on prompts for delete using (can_manage_challenge(c
 -- books: any signed-in user can read the catalog (writes via upsert_book)
 create policy books_select on books for select using ((select current_user_id()) is not null);
 
--- entries: group members see everyone's; you manage only your own
+-- entries: group members see everyone's; you manage only your own;
+-- books can only be logged against launched challenges
 create policy entries_select on entries for select using (is_group_member(challenge_group(challenge_id)));
 create policy entries_insert on entries for insert with check (
   user_id = (select current_user_id())
   and is_group_member(challenge_group(challenge_id))
+  and challenge_is_active(challenge_id)
   and exists (select 1 from prompts p where p.id = prompt_id and p.challenge_id = entries.challenge_id)
 );
 create policy entries_update on entries for update
   using (user_id = (select current_user_id()))
   with check (
     user_id = (select current_user_id())
+    and challenge_is_active(challenge_id)
     and exists (select 1 from prompts p where p.id = prompt_id and p.challenge_id = entries.challenge_id)
   );
 create policy entries_delete on entries for delete using (user_id = (select current_user_id()));

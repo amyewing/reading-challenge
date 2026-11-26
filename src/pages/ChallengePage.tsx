@@ -31,8 +31,8 @@ export default function ChallengePage() {
     );
 
   const { challenge, prompts, entries, members } = data.data;
-  const myRole = members.find((m) => m.user_id === me.id)?.role;
-  const canManage = challenge.created_by === me.id || myRole === 'owner' || myRole === 'admin';
+  const canManage = !!challenge.can_manage;
+  const isDraft = challenge.status === 'draft';
   const myEntries = new Map(entries.filter((e) => e.user_id === me.id).map((e) => [e.prompt_id, e]));
   const total = prompts.length;
 
@@ -43,6 +43,16 @@ export default function ChallengePage() {
       count: entries.filter((e) => e.user_id === m.user_id).length,
     }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+  async function launch() {
+    if (!confirm('Launch this challenge? Everyone in the group will see it and can start logging books.')) return;
+    try {
+      await api(`/api/challenges/${challenge.id}/launch`, { method: 'POST' });
+      data.reload();
+    } catch (e: any) {
+      alert(e.message);
+    }
+  }
 
   async function deleteChallenge() {
     if (!confirm(`Delete "${challenge.title}" and everyone's logged books for it? This can't be undone.`)) return;
@@ -59,9 +69,38 @@ export default function ChallengePage() {
       <p className="crumbs">
         <Link to="/">Groups</Link> / <Link to={`/groups/${challenge.group_id}`}>{challenge.group_name}</Link> /
       </p>
-      <h1>{challenge.title}</h1>
+      <div className="section-head title-head">
+        <h1>
+          {challenge.title} {isDraft && <span className="badge">Draft</span>}
+        </h1>
+        {canManage && !isDraft && (
+          <Link className="button" to={`/challenges/${challenge.id}/edit`}>Edit</Link>
+        )}
+      </div>
       {challenge.description && <p className="muted">{challenge.description}</p>}
 
+      {isDraft && (
+        <section className="card draft-banner">
+          <p>
+            <strong>This is a draft.</strong> Only you and the group's admins can see it, and books can't be logged
+            yet. Keep editing until it's ready, then launch it for the group.
+          </p>
+          <div className="row">
+            <Link className="button" to={`/challenges/${challenge.id}/edit`}>Edit challenge</Link>
+            <button
+              className="primary"
+              onClick={launch}
+              disabled={prompts.length === 0}
+              title={prompts.length === 0 ? 'Add at least one prompt first' : undefined}
+            >
+              Launch challenge
+            </button>
+          </div>
+          {prompts.length === 0 && <p className="small muted">Add at least one prompt before launching.</p>}
+        </section>
+      )}
+
+      {!isDraft && (
       <section className="card">
         <h2>Progress</h2>
         <ul className="progress-list">
@@ -74,8 +113,10 @@ export default function ChallengePage() {
           ))}
         </ul>
       </section>
+      )}
 
       <h2>Prompts</h2>
+      {prompts.length === 0 && <p className="muted">No prompts yet.</p>}
       <ol className="prompts">
         {prompts.map((prompt, i) => {
           const mine = myEntries.get(prompt.id) ?? null;
@@ -105,7 +146,7 @@ export default function ChallengePage() {
                   </div>
                   <button className="link" onClick={() => setLogging({ prompt, entry: mine })}>Edit</button>
                 </div>
-              ) : (
+              ) : isDraft ? null : (
                 <button className="primary" onClick={() => setLogging({ prompt, entry: null })}>Log a book</button>
               )}
 

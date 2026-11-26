@@ -22,7 +22,8 @@ The database connection string is a secret that lives only on the server. The br
 - Sign up or sign in with Google, Facebook, or an email code (Kinde)
 - Create groups (you become the **owner**)
 - Owners and admins create invite links that last 14 days, and can revoke them
-- Anyone in a group can create a challenge: a title, dates, and prompts (type them one by one or paste a list)
+- Anyone in a group can create a challenge: a title, dates, and prompts (type them one by one or paste several at once). Prompts can have optional details.
+- New challenges start as **drafts**, visible only to their creator and the group's admins. Edit them as often as you like (reword, reorder, add or remove prompts), then **launch** them for the group. Launched challenges can still be edited, but a prompt with logged books can't be removed.
 - Log a book against a prompt: search Open Library or type it in, then add a finish date, a rating and notes
 - See everyone's progress, and what others read for each prompt
 - Leave a group. Challenge creators and admins can delete a challenge
@@ -62,7 +63,7 @@ Check everything compiles with `npm run typecheck`.
 
 ### Neon (database)
 1. Create a project.
-2. On a new database, run [db/schema.sql](db/schema.sql) in the SQL Editor. The existing database was created with an earlier version, so it was updated with [db/migrations/002_own_api.sql](db/migrations/002_own_api.sql) instead.
+2. On a new database, run [db/schema.sql](db/schema.sql) in the SQL Editor. The existing database was created with an earlier version and has been brought up to date with the files in [db/migrations/](db/migrations/), in order (002, 003).
 3. For `DATABASE_URL`, use **Connect**, role `neondb_owner`, with **Connection pooling** on.
 4. The Neon **Data API** is not used and should stay disabled.
 
@@ -99,7 +100,6 @@ src/components/          LogBookDialog (book search + logging), BookCover
 
 ## Ideas for next steps
 
-- Edit a challenge's prompts after creating it (the access rules already allow it)
 - Promote members to admin from the members list
 - Import past years from Google Sheets
 - Tags on books, longer reviews, and a "books that fit this prompt" search across groups

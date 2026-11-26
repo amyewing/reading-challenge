@@ -7,6 +7,7 @@ import Home from './pages/Home';
 import GroupPage from './pages/GroupPage';
 import NewChallenge from './pages/NewChallenge';
 import ChallengePage from './pages/ChallengePage';
+import EditChallenge from './pages/EditChallenge';
 import InvitePage from './pages/InvitePage';
 
 export const PENDING_INVITE_KEY = 'pendingInvite';
@@ -141,6 +142,7 @@ export default function App() {
           <Route path="/groups/:groupId" element={<GroupPage />} />
           <Route path="/groups/:groupId/challenges/new" element={<NewChallenge />} />
           <Route path="/challenges/:challengeId" element={<ChallengePage />} />
+          <Route path="/challenges/:challengeId/edit" element={<EditChallenge />} />
           <Route path="/invite/:code" element={<InvitePage />} />
           <Route path="*" element={<p>Page not found. <Link to="/">Go home</Link></p>} />
         </Routes>

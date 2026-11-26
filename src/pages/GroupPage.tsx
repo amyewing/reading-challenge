@@ -66,7 +66,9 @@ export default function GroupPage() {
           <div className="cards">
             {challenges.map((c) => (
               <Link key={c.id} to={`/challenges/${c.id}`} className="card card-link">
-                <h3>{c.title}</h3>
+                <h3>
+                  {c.title} {c.status === 'draft' && <span className="badge">Draft</span>}
+                </h3>
                 <p className="small muted">
                   {c.prompt_count} prompts
                   {c.starts_on && ` · ${formatDate(c.starts_on)} – ${formatDate(c.ends_on) ?? 'open'}`}

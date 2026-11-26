@@ -27,6 +27,10 @@ export interface Challenge {
   starts_on: string | null;
   ends_on: string | null;
   created_by: string;
+  status: 'draft' | 'active';
+  launched_at: string | null;
+  /** Present on the challenge page: whether you may edit/launch/delete it */
+  can_manage?: boolean;
 }
 
 export interface Prompt {
