@@ -70,7 +70,7 @@ Check everything compiles with `npm run typecheck`.
 
 The app follows the same layout as [bmewing/boardgamemeetups](https://github.com/bmewing/boardgamemeetups): a static site plus one Function, in one App Platform app.
 
-1. Bundle the API and commit the result. DigitalOcean deploys the bundled file [functions/packages/core/api.js](functions/packages/core/api.js) as-is.
+1. Bundle the API and commit the result. DigitalOcean deploys the bundled function folder [functions/packages/core/api/](functions/packages/core/api/) as-is.
    ```powershell
    npm run build:api
    ```

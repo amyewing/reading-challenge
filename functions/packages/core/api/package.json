@@ -1,0 +1,8 @@
+{
+  "name": "reading-challenge-api",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Bundled API function. Built by `npm run build:api` in the project root; do not edit index.js by hand.",
+  "type": "commonjs",
+  "main": "index.js"
+}

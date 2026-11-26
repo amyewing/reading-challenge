@@ -3,7 +3,7 @@
  * this function with http.path = /<rest>; the front end calls /api/core/api/api/..., so the
  * router sees the same /api/... paths as in local development.
  *
- * Bundled into functions/packages/core/api.js by `npm run build:api`.
+ * Bundled into functions/packages/core/api/index.js by `npm run build:api`.
  */
 import { handle } from './routes';
 
