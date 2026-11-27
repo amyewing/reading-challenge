@@ -10,6 +10,18 @@ import BookTagsDialog from '../components/BookTagsDialog';
 import BookCover from '../components/BookCover';
 import TagChips from '../components/TagChips';
 
+/** The date stamp on a finished prompt: "Read 14 Mar 2027" (latest finish date), or just "Read" */
+function readStamp(entries: Entry[]) {
+  const latest = entries
+    .map((e) => e.finished_on)
+    .filter((d): d is string => !!d)
+    .sort()
+    .pop();
+  if (!latest) return 'Read';
+  const d = new Date(latest + 'T00:00:00');
+  return `Read ${d.getDate()} ${d.toLocaleDateString('en-GB', { month: 'short' })} ${d.getFullYear()}`;
+}
+
 type Dialog =
   | { kind: 'log'; prompt: Prompt; entry: Entry | null; book?: Book | null }
   | { kind: 'consider'; prompt: Prompt; consideration: Consideration | null; book?: Book | null }
@@ -133,7 +145,7 @@ export default function ChallengePage() {
 
       {!isDraft && (
         <section className="card">
-          <h2>Progress</h2>
+          <div className="strip red">Progress</div>
           <ul className="progress-list">
             {progress.map((p) => (
               <li key={p.id}>
@@ -196,13 +208,12 @@ export default function ChallengePage() {
 
           return (
             <li key={prompt.id} className={`prompt card ${done ? 'done' : ''}`}>
-              <div className="prompt-head">
-                <span className="prompt-num">{number}</span>
-                <div className="grow">
-                  <h3>{prompt.title}</h3>
-                  {prompt.description && <p className="small muted">{prompt.description}</p>}
-                </div>
+              <div className="strip">
+                <span>Prompt No. {number}</span>
+                {done && <span className="stamp">{readStamp(mine)}</span>}
               </div>
+              <h3>{prompt.title}</h3>
+              {prompt.description && <p className="small muted prompt-desc">{prompt.description}</p>}
 
               {mine.length > 0 && (
                 <ul className="my-entries">

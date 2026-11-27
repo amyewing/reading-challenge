@@ -66,13 +66,14 @@ export default function GroupPage() {
           <div className="cards">
             {challenges.map((c) => (
               <Link key={c.id} to={`/challenges/${c.id}`} className="card card-link">
-                <h3>
-                  {c.title} {c.status === 'draft' && <span className="badge">Draft</span>}
-                </h3>
-                <p className="small muted">
-                  {c.prompt_count} prompts
-                  {c.starts_on && ` · ${formatDate(c.starts_on)} – ${formatDate(c.ends_on) ?? 'open'}`}
-                </p>
+                <div className={`strip ${c.status === 'draft' ? 'gold' : ''}`}>
+                  <span>{c.prompt_count} {c.prompt_count === 1 ? 'prompt' : 'prompts'}</span>
+                  {c.status === 'draft' && <span>Draft</span>}
+                </div>
+                <h3>{c.title}</h3>
+                {c.starts_on && (
+                  <p className="small muted">{formatDate(c.starts_on)} – {formatDate(c.ends_on) ?? 'open'}</p>
+                )}
                 {c.description && <p className="muted">{c.description}</p>}
               </Link>
             ))}
@@ -81,7 +82,7 @@ export default function GroupPage() {
 
         <aside>
           <section className="card">
-            <h2>Members</h2>
+            <div className="strip red">Members</div>
             <ul className="member-list">
               {members.map((m) => (
                 <li key={m.user_id}>

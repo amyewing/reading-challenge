@@ -44,12 +44,14 @@ export default function Home() {
       <div className="cards">
         {groups.data?.map((g) => (
           <Link key={g.id} to={`/groups/${g.id}`} className="card card-link">
+            <div className="strip">
+              <span>
+                {g.member_count} {g.member_count === 1 ? 'member' : 'members'} · {g.challenge_count}{' '}
+                {g.challenge_count === 1 ? 'challenge' : 'challenges'}
+              </span>
+            </div>
             <h3>{g.name}</h3>
             {g.description && <p className="muted">{g.description}</p>}
-            <p className="small muted">
-              {g.member_count} {g.member_count === 1 ? 'member' : 'members'} ·{' '}
-              {g.challenge_count} {g.challenge_count === 1 ? 'challenge' : 'challenges'}
-            </p>
           </Link>
         ))}
       </div>
