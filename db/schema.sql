@@ -123,9 +123,36 @@ create table considerations (
   reason        text,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now(),
+  -- 'reading': you've started it; progress is an approximate percentage
+  status        text not null default 'considering' check (status in ('considering', 'reading')),
+  progress      smallint check (progress between 0 and 100),
+  started_on    date,
   unique (prompt_id, user_id, book_id)
 );
 create index considerations_challenge_idx on considerations (challenge_id);
+
+-- One discussion thread per prompt; a message can be about one of the books
+create table prompt_messages (
+  id            uuid primary key default gen_random_uuid(),
+  challenge_id  uuid not null references challenges(id) on delete cascade,
+  prompt_id     uuid not null references prompts(id) on delete cascade,
+  user_id       text not null default current_user_id() references profiles(id) on delete cascade,
+  book_id       uuid references books(id),
+  body          text not null check (length(trim(body)) between 1 and 4000),
+  spoiler       boolean not null default false,
+  created_at    timestamptz not null default now(),
+  edited_at     timestamptz
+);
+create index prompt_messages_prompt_idx on prompt_messages (prompt_id, created_at);
+create index prompt_messages_challenge_idx on prompt_messages (challenge_id);
+
+-- When each person last opened a prompt's discussion (drives "new" counts)
+create table prompt_message_reads (
+  prompt_id     uuid not null references prompts(id) on delete cascade,
+  user_id       text not null default current_user_id() references profiles(id) on delete cascade,
+  last_read_at  timestamptz not null default now(),
+  primary key (prompt_id, user_id)
+);
 
 -- Tag library: suggested tags (see db/tags_seed.sql) plus tags people add
 create table tags (
@@ -375,6 +402,8 @@ alter table prompts       enable row level security;
 alter table books         enable row level security;
 alter table entries       enable row level security;
 alter table considerations enable row level security;
+alter table prompt_messages enable row level security;
+alter table prompt_message_reads enable row level security;
 alter table tags          enable row level security;
 alter table book_tags     enable row level security;
 
@@ -461,6 +490,32 @@ create policy considerations_update on considerations for update
     and exists (select 1 from prompts p where p.id = prompt_id and p.challenge_id = considerations.challenge_id)
   );
 create policy considerations_delete on considerations for delete using (user_id = (select current_user_id()));
+
+-- prompt_messages: anyone who can see the challenge sees its discussions (drafts too, so
+-- organisers and admins can talk through how to word a prompt). You write and edit only as
+-- yourself; you delete your own messages, and the organiser or a group admin can delete any.
+create policy prompt_messages_select on prompt_messages for select using (challenge_visible(challenge_id));
+create policy prompt_messages_insert on prompt_messages for insert with check (
+  user_id = (select current_user_id())
+  and challenge_visible(challenge_id)
+  and exists (select 1 from prompts p where p.id = prompt_id and p.challenge_id = prompt_messages.challenge_id)
+);
+create policy prompt_messages_update on prompt_messages for update
+  using (user_id = (select current_user_id()))
+  with check (
+    user_id = (select current_user_id())
+    and challenge_visible(challenge_id)
+    and exists (select 1 from prompts p where p.id = prompt_id and p.challenge_id = prompt_messages.challenge_id)
+  );
+create policy prompt_messages_delete on prompt_messages for delete using (
+  user_id = (select current_user_id()) or can_manage_challenge(challenge_id)
+);
+
+-- prompt_message_reads: only your own
+create policy prompt_message_reads_select on prompt_message_reads for select using (user_id = (select current_user_id()));
+create policy prompt_message_reads_insert on prompt_message_reads for insert with check (user_id = (select current_user_id()));
+create policy prompt_message_reads_update on prompt_message_reads for update
+  using (user_id = (select current_user_id())) with check (user_id = (select current_user_id()));
 
 -- tags / book_tags: any signed-in person sees the library and how books are tagged;
 -- people add their own (never "suggested") tags and tag books only as themselves

@@ -3,9 +3,11 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 import { useMe } from '../App';
-import type { Book, BookTag, Challenge, Consideration, Entry, Member, Prompt } from '../lib/types';
+import type { Book, BookTag, Challenge, Consideration, Entry, Member, MessageCount, Prompt } from '../lib/types';
 import LogBookDialog from '../components/LogBookDialog';
 import ConsiderDialog from '../components/ConsiderDialog';
+import ReadingProgressDialog from '../components/ReadingProgressDialog';
+import PromptChat from '../components/PromptChat';
 import BookTagsDialog from '../components/BookTagsDialog';
 import BookCover from '../components/BookCover';
 import TagChips from '../components/TagChips';
@@ -24,8 +26,19 @@ function readStamp(entries: Entry[]) {
 
 type Dialog =
   | { kind: 'log'; prompt: Prompt; entry: Entry | null; book?: Book | null }
-  | { kind: 'consider'; prompt: Prompt; consideration: Consideration | null; book?: Book | null }
+  | { kind: 'consider'; prompt: Prompt; consideration: Consideration | null; book?: Book | null; reading?: boolean }
+  | { kind: 'reading'; prompt: Prompt; consideration: Consideration }
   | { kind: 'tags'; book: Book };
+
+/** A thin bar showing roughly how far through a book someone is */
+function MiniBar({ percent }: { percent: number | null }) {
+  const p = percent ?? 0;
+  return (
+    <span className="mini-bar" title={`About ${p}% read`}>
+      <span style={{ width: `${p}%` }} />
+    </span>
+  );
+}
 
 export default function ChallengePage() {
   const { challengeId } = useParams();
@@ -34,6 +47,8 @@ export default function ChallengePage() {
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [hideFinished, setHideFinished] = useState(false);
+  // Prompts whose discussion is open (bookId: narrowed to messages about that book)
+  const [chat, setChat] = useState<Record<string, { bookId: string | null } | undefined>>({});
 
   const data = useAsync(
     () =>
@@ -44,6 +59,7 @@ export default function ChallengePage() {
         considerations: Consideration[];
         members: Member[];
         bookTags: (BookTag & { book_id: string })[];
+        messageCounts: MessageCount[];
       }>(`/api/challenges/${challengeId}`),
     [challengeId],
   );
@@ -72,16 +88,62 @@ export default function ChallengePage() {
   }
   const total = prompts.length;
 
+  // Discussion counts: per prompt, and per book on a prompt
+  const messageCounts = data.data.messageCounts ?? [];
+  const promptMessages = (promptId: string) => {
+    const rows = messageCounts.filter((c) => c.prompt_id === promptId);
+    return { count: rows.reduce((n, c) => n + c.count, 0), unread: rows.reduce((n, c) => n + c.unread, 0) };
+  };
+  const bookMessages = (promptId: string, bookId: string) =>
+    messageCounts.find((c) => c.prompt_id === promptId && c.book_id === bookId)?.count ?? 0;
+  const openChat = (promptId: string, bookId: string | null) => setChat({ ...chat, [promptId]: { bookId } });
+  /** A small "Discuss" / "3 comments" link under a book, opening the discussion about it */
+  const discuss = (prompt: Prompt, book: Book | null) => {
+    if (!book) return null;
+    const n = bookMessages(prompt.id, book.id);
+    return (
+      <button className="link small discuss-link" onClick={() => openChat(prompt.id, book.id)}>
+        {n > 0 ? `${n} ${n === 1 ? 'comment' : 'comments'}` : 'Discuss'}
+      </button>
+    );
+  };
+
   const progress = members
     .map((m) => {
       const read = new Set(entries.filter((e) => e.user_id === m.user_id).map((e) => e.prompt_id));
+      const readingNow = considerations.filter((c) => c.user_id === m.user_id && c.status === 'reading' && !read.has(c.prompt_id));
+      const readingPrompts = new Set(readingNow.map((c) => c.prompt_id));
       const planned = new Set(
-        considerations.filter((c) => c.user_id === m.user_id && !read.has(c.prompt_id)).map((c) => c.prompt_id),
+        considerations
+          .filter((c) => c.user_id === m.user_id && !read.has(c.prompt_id) && !readingPrompts.has(c.prompt_id))
+          .map((c) => c.prompt_id),
       );
-      return { id: m.user_id, name: m.profiles?.display_name ?? 'Reader', count: read.size, planned: planned.size };
+      return {
+        id: m.user_id,
+        name: m.profiles?.display_name ?? 'Reader',
+        count: read.size,
+        reading: readingPrompts.size,
+        readingNow,
+        planned: planned.size,
+      };
     })
-    .sort((a, b) => b.count - a.count || b.planned - a.planned || a.name.localeCompare(b.name));
+    .sort(
+      (a, b) =>
+        b.count - a.count || b.reading - a.reading || b.planned - a.planned || a.name.localeCompare(b.name),
+    );
   const anyPlanned = progress.some((p) => p.planned > 0);
+  const anyReading = progress.some((p) => p.reading > 0);
+
+  /** "Reading Piranesi · 40%", "Reading 2 books", or "Not started yet" */
+  function progressNote(p: (typeof progress)[number]) {
+    if (p.readingNow.length === 1) {
+      const c = p.readingNow[0];
+      return `Reading ${c.books?.title ?? 'a book'}${c.progress != null ? ` · ${c.progress}%` : ''}`;
+    }
+    if (p.readingNow.length > 1) return `Reading ${p.readingNow.length} books`;
+    if (p.count > 0) return null;
+    return p.planned > 0 ? 'Has books in mind, not started yet' : 'Not started yet';
+  }
 
   const visiblePrompts = prompts
     .map((prompt, i) => ({ prompt, number: i + 1 }))
@@ -153,23 +215,30 @@ export default function ChallengePage() {
         <section className="card">
           <div className="strip red">Progress</div>
           <ul className="progress-list">
-            {progress.map((p) => (
-              <li key={p.id}>
-                <span className="progress-name">{p.name}{p.id === me.id && ' (you)'}</span>
-                <span
-                  className="bar"
-                  title={`${p.count} read${p.planned ? `, ${p.planned} more with books in mind` : ''}`}
-                >
-                  <span className="bar-done" style={{ width: total ? `${(p.count / total) * 100}%` : 0 }} />
-                  <span className="bar-planned" style={{ width: total ? `${(p.planned / total) * 100}%` : 0 }} />
-                </span>
-                <span className="small muted">{p.count}/{total}</span>
-              </li>
-            ))}
+            {progress.map((p) => {
+              const note = progressNote(p);
+              return (
+                <li key={p.id}>
+                  <span className="progress-name">{p.name}{p.id === me.id && ' (you)'}</span>
+                  <span
+                    className="bar"
+                    title={`${p.count} read${p.reading ? `, ${p.reading} being read` : ''}${p.planned ? `, ${p.planned} more with books in mind` : ''}`}
+                  >
+                    <span className="bar-done" style={{ width: total ? `${(p.count / total) * 100}%` : 0 }} />
+                    <span className="bar-reading" style={{ width: total ? `${(p.reading / total) * 100}%` : 0 }} />
+                    <span className="bar-planned" style={{ width: total ? `${(p.planned / total) * 100}%` : 0 }} />
+                  </span>
+                  <span className="small muted">{p.count}/{total}</span>
+                  {note && <span className="progress-note small muted">{note}</span>}
+                </li>
+              );
+            })}
           </ul>
-          {anyPlanned && (
+          {(anyPlanned || anyReading) && (
             <p className="small muted legend">
-              <span className="swatch swatch-done" /> read <span className="swatch swatch-planned" /> has a book in mind
+              <span className="swatch swatch-done" /> read
+              {anyReading && <><span className="swatch swatch-reading" /> reading</>}
+              {anyPlanned && <><span className="swatch swatch-planned" /> has a book in mind</>}
             </p>
           )}
         </section>
@@ -194,12 +263,25 @@ export default function ChallengePage() {
         {visiblePrompts.map(({ prompt, number }) => {
           const mine = myEntries.get(prompt.id) ?? [];
           const done = mine.length > 0;
-          const myList = considerations.filter((c) => c.prompt_id === prompt.id && c.user_id === me.id);
+          const myListAll = considerations.filter((c) => c.prompt_id === prompt.id && c.user_id === me.id);
+          const myReading = myListAll.filter((c) => c.status === 'reading');
+          const myList = myListAll.filter((c) => c.status !== 'reading');
           const othersRead = entries.filter((e) => e.prompt_id === prompt.id && e.user_id !== me.id);
-          const othersConsidering = considerations.filter((c) => c.prompt_id === prompt.id && c.user_id !== me.id);
-          const onMyList = new Set([...myList, ...mine].map((x) => x.books?.id).filter(Boolean));
-          const othersCount = othersRead.length + othersConsidering.length;
+          const othersAll = considerations.filter((c) => c.prompt_id === prompt.id && c.user_id !== me.id);
+          const othersReading = othersAll.filter((c) => c.status === 'reading');
+          const othersConsidering = othersAll.filter((c) => c.status !== 'reading');
+          const onMyList = new Set([...myListAll, ...mine].map((x) => x.books?.id).filter(Boolean));
+          const othersCount = othersRead.length + othersReading.length + othersConsidering.length;
           const open = expanded[prompt.id];
+          const talk = promptMessages(prompt.id);
+          const chatOpen = chat[prompt.id];
+          // Every book anyone has read, is reading or is considering for this prompt (for tagging messages)
+          const promptBooks: Book[] = [];
+          for (const x of [...entries, ...considerations]) {
+            if (x.prompt_id === prompt.id && x.books && !promptBooks.some((b) => b.id === x.books!.id)) {
+              promptBooks.push(x.books);
+            }
+          }
 
           const addToMyList = (book: Book | null) =>
             book &&
@@ -216,7 +298,15 @@ export default function ChallengePage() {
             <li key={prompt.id} className={`prompt card ${done ? 'done' : ''}`}>
               <div className="strip">
                 <span>Prompt No. {number}</span>
-                {done && <span className="stamp">{readStamp(mine)}</span>}
+                {done ? (
+                  <span className="stamp">{readStamp(mine)}</span>
+                ) : (
+                  myReading.length > 0 && (
+                    <span className="stamp stamp-reading">
+                      Reading{myReading.length === 1 && myReading[0].progress != null ? ` ${myReading[0].progress}%` : ''}
+                    </span>
+                  )
+                )}
               </div>
               <h3>{prompt.title}</h3>
               {prompt.description && <p className="small muted prompt-desc">{prompt.description}</p>}
@@ -237,6 +327,7 @@ export default function ChallengePage() {
                         </div>
                         {entry.notes && <p className="small notes">{entry.notes}</p>}
                         {bookTags(entry.books)}
+                        {discuss(prompt, entry.books)}
                       </div>
                       <button className="link" onClick={() => setDialog({ kind: 'log', prompt, entry })}>Edit</button>
                     </li>
@@ -244,9 +335,49 @@ export default function ChallengePage() {
                 </ul>
               )}
 
+              {myReading.length > 0 && (
+                <div className="considering mine reading">
+                  <p className="eyebrow">You’re reading</p>
+                  <ul>
+                    {myReading.map((c) => (
+                      <li key={c.id}>
+                        <BookCover book={c.books} small />
+                        <div className="grow">
+                          <strong>{c.books?.title}</strong>
+                          {c.books?.author && <span className="muted"> — {c.books.author}</span>}
+                          <div className="reading-line small muted">
+                            <MiniBar percent={c.progress} />
+                            <span>
+                              about {c.progress ?? 0}%
+                              {c.started_on && ` · started ${new Date(c.started_on + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`}
+                            </span>
+                          </div>
+                          {c.reason && <p className="small notes">{c.reason}</p>}
+                          {bookTags(c.books)}
+                          {discuss(prompt, c.books)}
+                        </div>
+                        <div className="row idea-actions">
+                          {!isDraft && (
+                            <button
+                              className="small"
+                              onClick={() => setDialog({ kind: 'log', prompt, entry: null, book: c.books })}
+                            >
+                              Finished it
+                            </button>
+                          )}
+                          <button className="small" onClick={() => setDialog({ kind: 'reading', prompt, consideration: c })}>
+                            Update
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {myList.length > 0 && (
                 <div className="considering mine">
-                  <p className="eyebrow">{done ? 'Also on your list' : 'You’re considering'}</p>
+                  <p className="eyebrow">{done || myReading.length > 0 ? 'Also on your list' : 'You’re considering'}</p>
                   <ul>
                     {myList.map((c) => (
                       <li key={c.id}>
@@ -256,8 +387,17 @@ export default function ChallengePage() {
                           {c.books?.author && <span className="muted"> — {c.books.author}</span>}
                           {c.reason && <p className="small notes">{c.reason}</p>}
                           {bookTags(c.books)}
+                          {discuss(prompt, c.books)}
                         </div>
                         <div className="row idea-actions">
+                          {!isDraft && (
+                            <button
+                              className="small"
+                              onClick={() => setDialog({ kind: 'reading', prompt, consideration: c })}
+                            >
+                              Start reading
+                            </button>
+                          )}
                           {!isDraft && (
                             <button
                               className="small"
@@ -288,6 +428,11 @@ export default function ChallengePage() {
                     {done ? '+ Log another book' : 'Log a book'}
                   </button>
                 )}
+                {!isDraft && (
+                  <button onClick={() => setDialog({ kind: 'consider', prompt, consideration: null, reading: true })}>
+                    {done || myReading.length > 0 ? '+ Start another' : 'Start reading'}
+                  </button>
+                )}
                 <button onClick={() => setDialog({ kind: 'consider', prompt, consideration: null })}>
                   {done ? '+ Consider another' : 'Consider a book'}
                 </button>
@@ -299,6 +444,7 @@ export default function ChallengePage() {
                     {open ? 'Hide' : 'See'} what others{' '}
                     {[
                       othersRead.length > 0 && `read (${othersRead.length})`,
+                      othersReading.length > 0 && `are reading (${othersReading.length})`,
                       othersConsidering.length > 0 && `are considering (${othersConsidering.length})`,
                     ]
                       .filter(Boolean)
@@ -322,8 +468,32 @@ export default function ChallengePage() {
                                   </div>
                                   {e.notes && <p className="small notes">{e.notes}</p>}
                                   {bookTags(e.books)}
+                                  {discuss(prompt, e.books)}
                                 </div>
                                 {addToMyList(e.books)}
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                      {othersReading.length > 0 && (
+                        <>
+                          <p className="eyebrow others-label">Reading</p>
+                          <ul>
+                            {othersReading.map((c) => (
+                              <li key={c.id}>
+                                <BookCover book={c.books} small />
+                                <div className="grow">
+                                  <strong>{c.books?.title}</strong>
+                                  {c.books?.author && <span className="muted"> — {c.books.author}</span>}
+                                  <div className="reading-line small muted">
+                                    <MiniBar percent={c.progress} />
+                                    <span>{c.profiles?.display_name} · about {c.progress ?? 0}%</span>
+                                  </div>
+                                  {bookTags(c.books)}
+                                  {discuss(prompt, c.books)}
+                                </div>
+                                {addToMyList(c.books)}
                               </li>
                             ))}
                           </ul>
@@ -342,6 +512,7 @@ export default function ChallengePage() {
                                   <div className="small muted">{c.profiles?.display_name}</div>
                                   {c.reason && <p className="small notes">{c.reason}</p>}
                                   {bookTags(c.books)}
+                                  {discuss(prompt, c.books)}
                                 </div>
                                 {addToMyList(c.books)}
                               </li>
@@ -353,6 +524,29 @@ export default function ChallengePage() {
                   )}
                 </div>
               )}
+
+              <div className="discussion">
+                <button
+                  className="link small"
+                  onClick={() => setChat({ ...chat, [prompt.id]: chatOpen ? undefined : { bookId: null } })}
+                  aria-expanded={!!chatOpen}
+                >
+                  {chatOpen ? 'Hide discussion' : 'Discussion'}
+                  {talk.count > 0 && ` (${talk.count}${talk.unread > 0 ? ` · ${talk.unread} new` : ''})`}
+                </button>
+                {chatOpen && (
+                  <PromptChat
+                    key={`${prompt.id}:${chatOpen.bookId ?? ''}`}
+                    promptId={prompt.id}
+                    books={promptBooks}
+                    initialBookId={chatOpen.bookId}
+                    myId={me.id}
+                    canModerate={canManage}
+                    unread={talk.unread}
+                    onChanged={data.reload}
+                  />
+                )}
+              </div>
             </li>
           );
         })}
@@ -389,6 +583,18 @@ export default function ChallengePage() {
           prompt={dialog.prompt}
           existing={dialog.consideration}
           initialBook={dialog.book}
+          reading={dialog.reading}
+          onClose={() => setDialog(null)}
+          onSaved={() => {
+            setDialog(null);
+            data.reload();
+          }}
+        />
+      )}
+      {dialog?.kind === 'reading' && (
+        <ReadingProgressDialog
+          prompt={dialog.prompt}
+          consideration={dialog.consideration}
           onClose={() => setDialog(null)}
           onSaved={() => {
             setDialog(null);

@@ -30,6 +30,8 @@ The database connection string is a secret that lives only on the server. The br
 - Log a book against a prompt: search Open Library (by anything, title only, or author only) or type it in, then add a finish date, a rating and notes. Several different books can count toward the same prompt.
 - **Tag** books with genre, mood, pace and more. The suggested tags are based on Goodreads' genres and StoryGraph's moods, pace and story questions, plus popular reader tags and content notes ([db/tags_seed.sql](db/tags_seed.sql)). Anyone can add their own tags too. Each person's tags are counted separately, so a book shows how many people chose each tag.
 - **Find books** by tag (books with all the chosen tags), title or author. Each result shows its tags and who in your groups read it or is considering it, and for which prompt.
+- **Start reading** a book (from your list or a new one) and say roughly how far through it you are (a rough percentage, updated whenever you like). Logging it as read finishes it. Everyone sees who is reading what, who has started a challenge, and who has not.
+- **Discuss** each prompt: one chat thread per prompt for how to interpret it and for thoughts on its books. A message can be about one of the books (each book shows its comment count), and can be marked as containing spoilers, which stay blurred until someone taps to show them. Prompts show how many messages are new to you. You edit and delete your own messages; a challenge's organiser and group admins can delete any.
 - See everyone's progress (books read, plus prompts they have a book in mind for), and what others read or are considering for each prompt. Hide the prompts you've finished to focus on what's left.
 - Leave a group. Challenge creators and admins can delete a challenge
 
@@ -68,7 +70,7 @@ Check everything compiles with `npm run typecheck`.
 
 ### Neon (database)
 1. Create a project.
-2. On a new database, run [db/schema.sql](db/schema.sql) and then [db/tags_seed.sql](db/tags_seed.sql) in the SQL Editor. The existing database was created with an earlier version and has been brought up to date with the files in [db/migrations/](db/migrations/), in order (002 to 007, with the tag seed after 006). Read each file's header first: 005 must be applied only after the API that goes with it is deployed. The tag seed can be re-run at any time to add new suggested tags.
+2. On a new database, run [db/schema.sql](db/schema.sql) and then [db/tags_seed.sql](db/tags_seed.sql) in the SQL Editor. The existing database was created with an earlier version and has been brought up to date with the files in [db/migrations/](db/migrations/), in order (002 to 008, with the tag seed after 006). Read each file's header first: 005 must be applied only after the API that goes with it is deployed. The tag seed can be re-run at any time to add new suggested tags.
 3. For `DATABASE_URL`, use **Connect**, role `neondb_owner`, with **Connection pooling** on.
 4. The Neon **Data API** is not used and should stay disabled.
 
@@ -102,7 +104,8 @@ src/lib/api.ts           front-end API client (adds the Kinde token, refreshes i
 src/pages/               screens: Home, GroupPage, GroupSettings, NewChallenge, EditChallenge,
                          ChallengePage, FindBooks, InvitePage
 src/components/          BookPicker (Open Library search), LogBookDialog, ConsiderDialog,
-                         TagPicker, TagChips, BookTagsDialog, ChallengeEditor, BookCover
+                         ReadingProgressDialog, PromptChat, TagPicker, TagChips, BookTagsDialog,
+                         ChallengeEditor, BookCover
 ```
 
 ## Ideas for next steps

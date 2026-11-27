@@ -65,6 +65,11 @@ export interface Consideration {
   user_id: string;
   reason: string | null;
   created_at: string;
+  /** "reading" once you have started it */
+  status: 'considering' | 'reading';
+  /** Approximate percentage read (0-100) while reading */
+  progress: number | null;
+  started_on: string | null;
   books: Book | null;
   profiles: Pick<Profile, 'display_name'> | null;
 }
@@ -94,4 +99,25 @@ export interface BookTag {
 export interface Me {
   id: string;
   name: string;
+}
+
+/** A message in a prompt's discussion; `books` is set when it is about one book */
+export interface PromptMessage {
+  id: string;
+  prompt_id: string;
+  user_id: string;
+  body: string;
+  spoiler: boolean;
+  created_at: string;
+  edited_at: string | null;
+  books: Book | null;
+  profiles: Pick<Profile, 'display_name'> | null;
+}
+
+/** How many messages a prompt (or one book on it) has, and how many are new to you */
+export interface MessageCount {
+  prompt_id: string;
+  book_id: string | null;
+  count: number;
+  unread: number;
 }

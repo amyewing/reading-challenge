@@ -6262,6 +6262,12 @@ function rating(value) {
   if (!Number.isInteger(value) || value < 1 || value > 5) throw badRequest("Rating must be 1 to 5 stars.");
   return value;
 }
+function percent(value) {
+  if (!Number.isInteger(value) || value < 0 || value > 100) {
+    throw badRequest("Progress must be a whole number from 0 to 100.");
+  }
+  return value;
+}
 var routes = [];
 function route(method, path, handler) {
   const keys = [];
@@ -6313,7 +6319,12 @@ route("GET", "/api/groups/:groupId", async ({ q, params }) => {
   const challenges = await q(
     `select c.id, c.group_id, c.title, c.description, c.starts_on::text, c.ends_on::text, c.created_by,
             c.status, c.launched_at,
-            (select count(*)::int from prompts p where p.challenge_id = c.id) as prompt_count
+            (select count(*)::int from prompts p where p.challenge_id = c.id) as prompt_count,
+            (select count(*)::int from group_members gm
+             where gm.group_id = c.group_id
+               and (exists (select 1 from entries e where e.challenge_id = c.id and e.user_id = gm.user_id)
+                    or exists (select 1 from considerations k
+                               where k.challenge_id = c.id and k.user_id = gm.user_id and k.status = 'reading'))) as started_count
      from challenges c where c.group_id = $1
      order by (c.status = 'draft') desc, c.created_at desc`,
     [params.groupId]
@@ -6527,7 +6538,7 @@ route("GET", "/api/challenges/:challengeId", async ({ q, params }) => {
     [params.challengeId]
   );
   const considerations = await q(
-    `select c.id, c.prompt_id, c.user_id, c.reason, c.created_at,
+    `select c.id, c.prompt_id, c.user_id, c.reason, c.created_at, c.status, c.progress, c.started_on::text,
             json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url) as books,
             json_build_object('display_name', p.display_name) as profiles
      from considerations c
@@ -6555,7 +6566,17 @@ route("GET", "/api/challenges/:challengeId", async ({ q, params }) => {
      order by count(*) desc, t.name`,
     [params.challengeId]
   );
-  return { challenge, prompts, entries, considerations, members, bookTags };
+  const messageCounts = await q(
+    `select m.prompt_id, m.book_id, count(*)::int as count,
+            count(*) filter (where m.user_id <> current_user_id()
+                               and m.created_at > coalesce(r.last_read_at, '-infinity'))::int as unread
+     from prompt_messages m
+     left join prompt_message_reads r on r.prompt_id = m.prompt_id and r.user_id = current_user_id()
+     where m.challenge_id = $1
+     group by m.prompt_id, m.book_id, r.last_read_at`,
+    [params.challengeId]
+  );
+  return { challenge, prompts, entries, considerations, members, bookTags, messageCounts };
 });
 route("POST", "/api/challenges/:challengeId/transfer", async ({ q, params, body }) => {
   const newOwner = text(body.userId, "New organiser", { max: 128, required: true });
@@ -6665,6 +6686,8 @@ route("POST", "/api/prompts/:promptId/considerations", async ({ q, params, body 
   const prompt = await visiblePrompt(q, params.promptId);
   const bookId = await resolveBook(q, body.book);
   const reason = text(body.reason, "Why it might fit", { max: 2e3 });
+  const reading = body.reading === true;
+  const progress = reading ? percent(body.progress ?? 0) : null;
   const [{ n }] = await q(
     "select count(*)::int as n from considerations where prompt_id = $1 and user_id = current_user_id() and book_id <> $2",
     [params.promptId, bookId]
@@ -6673,12 +6696,17 @@ route("POST", "/api/prompts/:promptId/considerations", async ({ q, params, body 
     throw badRequest(`You can consider up to ${MAX_CONSIDERING_PER_PROMPT} books per prompt. Remove one to add another.`);
   }
   const [row] = await q(
-    `insert into considerations (challenge_id, prompt_id, user_id, book_id, reason)
-     values ($1, $2, current_user_id(), $3, $4)
+    `insert into considerations (challenge_id, prompt_id, user_id, book_id, reason, status, progress, started_on)
+     values ($1, $2, current_user_id(), $3, $4, $5::text, $6::smallint, case when $5::text = 'reading' then current_date end)
      on conflict (prompt_id, user_id, book_id) do update
-       set reason = coalesce(excluded.reason, considerations.reason), updated_at = now()
+       set reason = coalesce(excluded.reason, considerations.reason),
+           status = case when excluded.status = 'reading' then 'reading' else considerations.status end,
+           progress = case when excluded.status = 'reading' then excluded.progress else considerations.progress end,
+           started_on = case when excluded.status = 'reading'
+                             then coalesce(considerations.started_on, current_date) else considerations.started_on end,
+           updated_at = now()
      returning id`,
-    [prompt.challenge_id, params.promptId, bookId, reason]
+    [prompt.challenge_id, params.promptId, bookId, reason, reading ? "reading" : "considering", progress]
   );
   return { id: row.id, bookId };
 });
@@ -6703,6 +6731,100 @@ route("PUT", "/api/considerations/:considerationId", async ({ q, params, body })
 });
 route("DELETE", "/api/considerations/:considerationId", async ({ q, params }) => {
   await q("delete from considerations where id = $1 and user_id = current_user_id()", [params.considerationId]);
+  return { ok: true };
+});
+route("PUT", "/api/considerations/:considerationId/reading", async ({ q, params, body }) => {
+  const progress = percent(body.progress);
+  const [existing] = await q(
+    "select id, challenge_id, book_id from considerations where id = $1 and user_id = current_user_id()",
+    [params.considerationId]
+  );
+  if (!existing) throw notFound("That book isn't on your list any more.");
+  await q(
+    `update considerations
+     set status = 'reading', progress = $2, started_on = coalesce(started_on, current_date), updated_at = now()
+     where user_id = current_user_id() and challenge_id = $3 and book_id = $4
+       and (id = $1 or status = 'reading')`,
+    [existing.id, progress, existing.challenge_id, existing.book_id]
+  );
+  return { id: existing.id };
+});
+route("DELETE", "/api/considerations/:considerationId/reading", async ({ q, params }) => {
+  await q(
+    `update considerations set status = 'considering', progress = null, started_on = null, updated_at = now()
+     where id = $1 and user_id = current_user_id()`,
+    [params.considerationId]
+  );
+  return { ok: true };
+});
+var MAX_MESSAGES_SHOWN = 500;
+function messageInput(body) {
+  return {
+    text: text(body.body, "Message", { max: 4e3, required: true }),
+    bookId: typeof body.bookId === "string" ? body.bookId : null,
+    spoiler: body.spoiler === true
+  };
+}
+async function checkMessageBook(q, bookId) {
+  if (bookId === null) return;
+  if (!new RegExp(`^${UUID}$`).test(bookId)) throw badRequest("That book was not found.");
+  const [book] = await q("select id from books where id = $1", [bookId]);
+  if (!book) throw badRequest("That book was not found.");
+}
+async function markMessagesRead(q, promptId) {
+  await q(
+    `insert into prompt_message_reads (prompt_id, user_id, last_read_at) values ($1, current_user_id(), now())
+     on conflict (prompt_id, user_id) do update set last_read_at = now()`,
+    [promptId]
+  );
+}
+route("GET", "/api/prompts/:promptId/messages", async ({ q, params }) => {
+  await visiblePrompt(q, params.promptId);
+  const messages = await q(
+    `select * from (
+       select m.id, m.prompt_id, m.user_id, m.body, m.spoiler, m.created_at, m.edited_at,
+              case when b.id is null then null
+                   else json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url) end as books,
+              json_build_object('display_name', p.display_name) as profiles
+       from prompt_messages m
+       join profiles p on p.id = m.user_id
+       left join books b on b.id = m.book_id
+       where m.prompt_id = $1
+       order by m.created_at desc
+       limit ${MAX_MESSAGES_SHOWN}) latest
+     order by created_at`,
+    [params.promptId]
+  );
+  await markMessagesRead(q, params.promptId);
+  return messages;
+});
+route("POST", "/api/prompts/:promptId/messages", async ({ q, params, body }) => {
+  const prompt = await visiblePrompt(q, params.promptId);
+  const input = messageInput(body);
+  await checkMessageBook(q, input.bookId);
+  const [row] = await q(
+    `insert into prompt_messages (challenge_id, prompt_id, user_id, book_id, body, spoiler)
+     values ($1, $2, current_user_id(), $3, $4, $5)
+     returning id`,
+    [prompt.challenge_id, params.promptId, input.bookId, input.text, input.spoiler]
+  );
+  await markMessagesRead(q, params.promptId);
+  return { id: row.id };
+});
+route("PUT", "/api/messages/:messageId", async ({ q, params, body }) => {
+  const input = messageInput(body);
+  await checkMessageBook(q, input.bookId);
+  const rows = await q(
+    `update prompt_messages set body = $2, book_id = $3, spoiler = $4, edited_at = now()
+     where id = $1 and user_id = current_user_id() returning id`,
+    [params.messageId, input.text, input.bookId, input.spoiler]
+  );
+  if (!rows.length) throw new HttpError(403, "You can only edit your own messages.");
+  return { id: rows[0].id };
+});
+route("DELETE", "/api/messages/:messageId", async ({ q, params }) => {
+  const rows = await q("delete from prompt_messages where id = $1 returning id", [params.messageId]);
+  if (!rows.length) throw new HttpError(403, "You can only delete your own messages (organisers and group admins can delete any).");
   return { ok: true };
 });
 var MAX_TAGS_PER_BOOK = 30;

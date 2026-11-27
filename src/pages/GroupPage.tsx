@@ -22,7 +22,7 @@ export default function GroupPage() {
 
   const data = useAsync(
     () =>
-      api<{ group: Group; members: Member[]; challenges: (Challenge & { prompt_count: number })[] }>(
+      api<{ group: Group; members: Member[]; challenges: (Challenge & { prompt_count: number; started_count: number })[] }>(
         `/api/groups/${groupId}`,
       ),
     [groupId],
@@ -78,6 +78,11 @@ export default function GroupPage() {
                   <p className="small muted">{formatDate(c.starts_on)} – {formatDate(c.ends_on) ?? 'open'}</p>
                 )}
                 {c.description && <p className="muted">{c.description}</p>}
+                {c.status === 'active' && (
+                  <p className="small muted">
+                    {c.started_count === 0 ? 'Nobody has started yet' : `${c.started_count} of ${members.length} started`}
+                  </p>
+                )}
               </Link>
             ))}
           </div>

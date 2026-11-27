@@ -11,14 +11,17 @@ interface Props {
   existing: Consideration | null;
   /** Start with this book chosen (e.g. adding someone else's idea to your list) */
   initialBook?: Book | null;
+  /** Start reading the book now (it goes on your list as "reading", with a rough progress) */
+  reading?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
 
 /** Add a book you might read for a prompt to your "considering" list, with why. */
-export default function ConsiderDialog({ prompt, existing, initialBook, onClose, onSaved }: Props) {
+export default function ConsiderDialog({ prompt, existing, initialBook, reading = false, onClose, onSaved }: Props) {
   const [picked, setPicked] = useState<PickedBook | null>(pickedFromBook(existing?.books ?? initialBook));
   const [reason, setReason] = useState(existing?.reason ?? '');
+  const [progress, setProgress] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const myTags = useMyBookTags(picked?.kind === 'existing' ? picked.book.id : null);
@@ -35,7 +38,11 @@ export default function ConsiderDialog({ prompt, existing, initialBook, onClose,
     setSaving(true);
     setError(null);
     try {
-      const body = { book: bookPayload(picked), reason: reason.trim() || null };
+      const body = {
+        book: bookPayload(picked),
+        reason: reason.trim() || null,
+        ...(reading && !existing ? { reading: true, progress } : {}),
+      };
       const saved = existing
         ? await api<{ bookId: string }>(`/api/considerations/${existing.id}`, { method: 'PUT', body })
         : await api<{ bookId: string }>(`/api/prompts/${prompt.id}/considerations`, { method: 'POST', body });
@@ -60,11 +67,20 @@ export default function ConsiderDialog({ prompt, existing, initialBook, onClose,
   return (
     <div className="overlay" onClick={onClose}>
       <form className="dialog" onClick={(e) => e.stopPropagation()} onSubmit={save}>
-        <p className="eyebrow">{existing ? 'A book you’re considering for' : 'Consider a book for'}</p>
+        <p className="eyebrow">
+          {existing ? 'A book you’re considering for' : reading ? 'Start reading a book for' : 'Consider a book for'}
+        </p>
         <h2>{prompt.title}</h2>
         {prompt.description && <p className="small muted">{prompt.description}</p>}
 
         <BookPicker value={picked} onChange={setPicked} label="Which book?" />
+
+        {picked && reading && !existing && (
+          <label>
+            How far in are you? <span className="muted">(roughly {progress}%, visible to your group)</span>
+            <input type="range" min={0} max={100} step={5} value={progress} onChange={(e) => setProgress(Number(e.target.value))} />
+          </label>
+        )}
 
         {picked && (
           <label>
@@ -85,7 +101,7 @@ export default function ConsiderDialog({ prompt, existing, initialBook, onClose,
           <span className="grow" />
           <button type="button" onClick={onClose}>Cancel</button>
           <button className="primary" disabled={!isComplete(picked) || saving}>
-            {saving ? 'Saving…' : existing ? 'Save' : 'Add to my list'}
+            {saving ? 'Saving…' : existing ? 'Save' : reading ? 'Start reading' : 'Add to my list'}
           </button>
         </div>
       </form>
