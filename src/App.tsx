@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
 import { api, ApiError, freshTokenGetter, setTokenGetter } from './lib/api';
 import type { Me } from './lib/types';
@@ -12,6 +12,7 @@ import InvitePage from './pages/InvitePage';
 import FindBooks from './pages/FindBooks';
 import GroupSettings from './pages/GroupSettings';
 import ProfilePage from './pages/ProfilePage';
+import Logo from './components/Logo';
 
 export const PENDING_INVITE_KEY = 'pendingInvite';
 
@@ -130,18 +131,28 @@ export default function App() {
 
   if (!me) return <div className="page narrow muted">Loading…</div>;
 
+  const onMyProfile = location.pathname === '/me' || location.pathname === `/people/${me.id}`;
+
   return (
     <MeContext.Provider value={me}>
       <header className="topbar">
-        <Link to="/" className="brand">📚 Reading Challenge</Link>
-        <div className="row">
-          <Link to="/books" className="nav-link">Find books</Link>
-          <Link to="/me" className="nav-link profile-link" aria-label="My profile" title="My profile">
-            <span className="topbar-name">{me.name}</span>
-            <span className="profile-icon" aria-hidden="true">👤</span>
+        <Link to="/" className="brand" aria-label="Reading Challenge, home">
+          <Logo />
+          <span className="brand-text">Reading Challenge</span>
+        </Link>
+        <nav className="row" aria-label="Main">
+          <NavLink to="/" end className="nav-link">Home</NavLink>
+          <NavLink to="/books" className="nav-link">Find books</NavLink>
+          <Link
+            to="/me"
+            className={`nav-link ${onMyProfile ? 'active' : ''}`}
+            aria-current={onMyProfile ? 'page' : undefined}
+          >
+            <span className="wide-only">My profile</span>
+            <span className="narrow-only">Profile</span>
           </Link>
-          <button className="link" onClick={() => logout()}>Sign out</button>
-        </div>
+          <button className="link" onClick={() => logout()} title={`Signed in as ${me.name}`}>Sign out</button>
+        </nav>
       </header>
       <main className="page">
         <Routes>

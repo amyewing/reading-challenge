@@ -33,7 +33,7 @@ The database connection string is a secret that lives only on the server. The br
 - **Start reading** a book (from your list or a new one) and say roughly how far through it you are (a rough percentage, updated whenever you like). Logging it as read finishes it. Everyone sees who is reading what, who has started a challenge, and who has not.
 - **Discuss** each prompt: one chat thread per prompt for how to interpret it and for thoughts on its books. A message can be about one of the books (each book shows its comment count), and can be marked as containing spoilers, which stay blurred until someone taps to show them. Prompts show how many messages are new to you. You edit and delete your own messages; a challenge's organiser and group admins can delete any.
 - See everyone's progress (books read, plus prompts they have a book in mind for), and what others read or are considering for each prompt. Hide the prompts you've finished to focus on what's left.
-- **Profiles**: your name in the top bar opens your profile with your groups, your challenges (with how far you are in each), and every book you have read, are reading or are considering. Click anyone's name to see theirs: you only see the groups and challenges you share with them, and never their email.
+- **Profiles**: "My profile" in the top bar (next to Home and Find books) opens your profile, where the numbers at the top jump to each section. It shows your groups, your challenges (with how far you are in each), and every book you have read, are reading or are considering. Click anyone's name to see theirs: you only see the groups and challenges you share with them, and never their email.
 - Leave a group. Challenge creators and admins can delete a challenge
 
 ---
@@ -105,7 +105,7 @@ src/lib/api.ts           front-end API client (adds the Kinde token, refreshes i
 src/pages/               screens: Home, GroupPage, GroupSettings, NewChallenge, EditChallenge,
                          ChallengePage, ProfilePage, FindBooks, InvitePage
 src/components/          BookPicker (Open Library search), LogBookDialog, ConsiderDialog,
-                         ReadingProgressDialog, PromptChat, TagPicker, TagChips, BookTagsDialog,
+                         Logo, ReadingProgressDialog, PromptChat, TagPicker, TagChips, BookTagsDialog,
                          ChallengeEditor, BookCover, RichText (notes with links), MiniBar, PersonLink
 ```
 

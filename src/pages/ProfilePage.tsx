@@ -76,6 +76,26 @@ function groupByBook<T extends { books: Book }>(rows: T[]) {
 const formatDate = (d: string, withYear = true) =>
   new Date(d + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: withYear ? 'numeric' : undefined });
 
+/** Scroll smoothly to a part of the page (without adding a step to the browser history) */
+function jumpTo(id: string) {
+  const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.getElementById(id)?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+}
+
+/** After a long list: a way back up to the jump links */
+function BackToTop({ show }: { show: boolean }) {
+  if (!show) return null;
+  return (
+    <p className="back-to-top small">
+      <button type="button" className="link" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+        Back to top
+      </button>
+    </p>
+  );
+}
+
+const LONG_LIST = 5;
+
 /** "for *prompt* in *challenge*", with the challenge linking to its page */
 function Where({ row }: { row: WithPrompt }) {
   return (
@@ -115,15 +135,23 @@ export default function ProfilePage() {
       </div>
       {!isMe && <p className="small muted">You can see the groups and challenges you share with {person.display_name}.</p>}
 
-      <section className="card stat-strip">
-        <div><strong>{readBooks.length}</strong><span>{readBooks.length === 1 ? 'book read' : 'books read'}</span></div>
-        <div><strong>{readingBooks.length}</strong><span>reading</span></div>
-        <div><strong>{consideringBooks.length}</strong><span>considering</span></div>
-        <div><strong>{groups.length}</strong><span>{groups.length === 1 ? 'group' : 'groups'}</span></div>
-      </section>
+      <nav className="card stat-strip" aria-label="Jump to a section">
+        {[
+          { id: 'profile-read', n: readBooks.length, label: readBooks.length === 1 ? 'book read' : 'books read' },
+          { id: 'profile-reading', n: readingBooks.length, label: 'reading' },
+          { id: 'profile-considering', n: consideringBooks.length, label: 'considering' },
+          { id: 'profile-challenges', n: challenges.length, label: challenges.length === 1 ? 'challenge' : 'challenges' },
+          { id: 'profile-groups', n: groups.length, label: groups.length === 1 ? 'group' : 'groups' },
+        ].map((s) => (
+          <button key={s.id} type="button" className="stat" disabled={s.n === 0} onClick={() => jumpTo(s.id)}>
+            <strong>{s.n}</strong>
+            <span>{s.label}</span>
+          </button>
+        ))}
+      </nav>
 
       {readingBooks.length > 0 && (
-        <section className="card">
+        <section className="card" id="profile-reading">
           <div className="strip red">Reading now</div>
           <ul className="book-list">
             {readingBooks.map(({ book, rows }) => (
@@ -150,7 +178,7 @@ export default function ProfilePage() {
         </section>
       )}
 
-      <section className="card">
+      <section className="card" id="profile-read">
         <div className="strip">Read</div>
         {readBooks.length === 0 && <p className="muted">No books read yet.</p>}
         <ul className="book-list">
@@ -177,9 +205,10 @@ export default function ProfilePage() {
             );
           })}
         </ul>
+        <BackToTop show={readBooks.length > LONG_LIST} />
       </section>
 
-      <section className="card">
+      <section className="card" id="profile-considering">
         <div className="strip">Considering</div>
         {consideringBooks.length === 0 && <p className="muted">Nothing on {whose} list right now.</p>}
         <ul className="book-list">
@@ -199,9 +228,10 @@ export default function ProfilePage() {
             </li>
           ))}
         </ul>
+        <BackToTop show={consideringBooks.length > LONG_LIST} />
       </section>
 
-      <div className="section-head"><h2>Challenges</h2></div>
+      <div className="section-head" id="profile-challenges"><h2>Challenges</h2></div>
       {challenges.length === 0 && <p className="muted">No challenges yet.</p>}
       <div className="cards">
         {challenges.map((c) => {
@@ -227,7 +257,7 @@ export default function ProfilePage() {
         })}
       </div>
 
-      <div className="section-head"><h2>Groups</h2></div>
+      <div className="section-head" id="profile-groups"><h2>Groups</h2></div>
       <div className="cards">
         {groups.map((g) => (
           <Link key={g.id} to={`/groups/${g.id}`} className="card card-link">
