@@ -62,6 +62,14 @@ code { background: var(--sage); padding: 0 4px; border-radius: 4px; }
 .brand { font-family: var(--serif); font-weight: 700; font-size: 1.2rem; text-decoration: none; color: var(--gold); }
 .nav-link { font-weight: 500; text-decoration: none; color: var(--gold); }
 .nav-link:hover { text-decoration: underline; }
+.brand, .nav-link, .topbar button.link { white-space: nowrap; }
+/* Phones: keep the top bar on one line */
+@media (max-width: 520px) {
+  .topbar { padding: 0.75rem 1rem; gap: 0.75rem; }
+  .topbar .row { gap: 0.9rem; flex-wrap: nowrap; }
+  .topbar-name { display: none; }
+  .brand { font-size: 1.05rem; }
+}
 .page { max-width: 960px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
 .narrow { max-width: 520px; margin: 2rem auto; }
 .crumbs { font-size: 0.875rem; color: var(--muted); margin-bottom: 0.35rem; }

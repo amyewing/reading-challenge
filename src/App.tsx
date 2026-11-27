@@ -134,7 +134,7 @@ export default function App() {
         <Link to="/" className="brand">📚 Reading Challenge</Link>
         <div className="row">
           <Link to="/books" className="nav-link">Find books</Link>
-          <span className="muted small">{me.name}</span>
+          <span className="muted small topbar-name">{me.name}</span>
           <button className="link" onClick={() => logout()}>Sign out</button>
         </div>
       </header>
