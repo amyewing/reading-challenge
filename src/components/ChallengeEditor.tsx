@@ -40,6 +40,9 @@ export default function ChallengeEditor({ initial, status, entryCounts = {}, can
   const [openDetails, setOpenDetails] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(initial.prompts.filter((p) => p.description).map((p) => [p.key, true])),
   );
+  // The prompt whose note box was just opened with "+ About this prompt", so the cursor goes straight in
+  // (boxes that are already open when the page loads don't take focus)
+  const [justOpened, setJustOpened] = useState<string | null>(null);
   const [bulkText, setBulkText] = useState('');
   const [showBulk, setShowBulk] = useState(false);
   const [saving, setSaving] = useState<null | 'save' | 'launch'>(null);
@@ -173,9 +176,17 @@ export default function ChallengeEditor({ initial, status, entryCounts = {}, can
                     onChange={(e) => updatePrompt(p.key, { description: e.target.value })}
                     placeholder="About this prompt: what it means, why it was chosen, examples. Links become clickable."
                     maxLength={5000}
+                    autoFocus={justOpened === p.key}
                   />
                 ) : (
-                  <button type="button" className="link small" onClick={() => setOpenDetails({ ...openDetails, [p.key]: true })}>
+                  <button
+                    type="button"
+                    className="link small"
+                    onClick={() => {
+                      setOpenDetails({ ...openDetails, [p.key]: true });
+                      setJustOpened(p.key);
+                    }}
+                  >
                     + About this prompt
                   </button>
                 )}

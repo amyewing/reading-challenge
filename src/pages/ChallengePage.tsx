@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 import { useMe } from '../App';
@@ -39,10 +39,19 @@ export default function ChallengePage() {
   const me = useMe();
   const navigate = useNavigate();
   const [dialog, setDialog] = useState<Dialog | null>(null);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // A link like ?discuss=<prompt>&book=<book> (from Find books) opens that book's thread
+  const [search] = useSearchParams();
+  const linkPrompt = search.get('discuss');
+  const linkBook = search.get('book');
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(linkPrompt && linkBook ? { [linkPrompt]: true } : {});
   const [hideFinished, setHideFinished] = useState(false);
-  // Prompts whose discussion is open (bookId: narrowed to messages about that book)
-  const [chat, setChat] = useState<Record<string, { bookId: string | null } | undefined>>({});
+  // Prompts whose general discussion is open
+  const [chat, setChat] = useState<Record<string, boolean | undefined>>({});
+  // Open book threads, by "promptId:bookId": the row each is shown under ('first' = the first row with that book)
+  const [threads, setThreads] = useState<Record<string, string | undefined>>(
+    linkPrompt && linkBook ? { [`${linkPrompt}:${linkBook}`]: 'first' } : {},
+  );
+  const scrolledToLink = useRef(false);
 
   const data = useAsync(
     () =>
@@ -57,6 +66,16 @@ export default function ChallengePage() {
       }>(`/api/challenges/${challengeId}`),
     [challengeId],
   );
+
+  // Bring a linked thread into view once the page has loaded
+  useEffect(() => {
+    if (!data.data || scrolledToLink.current || !linkPrompt || !linkBook) return;
+    scrolledToLink.current = true;
+    setTimeout(() => {
+      const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      document.getElementById(`thread-${linkPrompt}-${linkBook}`)?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'center' });
+    }, 150);
+  }, [data.data]);
 
   if (data.loading && !data.data) return <p className="muted">Loading…</p>;
   if (data.error || !data.data)
@@ -82,23 +101,62 @@ export default function ChallengePage() {
   }
   const total = prompts.length;
 
-  // Discussion counts: per prompt, and per book on a prompt
+  // Discussion counts: the prompt's general thread (no book), and each book's thread on it
   const messageCounts = data.data.messageCounts ?? [];
   const promptMessages = (promptId: string) => {
-    const rows = messageCounts.filter((c) => c.prompt_id === promptId);
-    return { count: rows.reduce((n, c) => n + c.count, 0), unread: rows.reduce((n, c) => n + c.unread, 0) };
+    const row = messageCounts.find((c) => c.prompt_id === promptId && c.book_id === null);
+    return { count: row?.count ?? 0, unread: row?.unread ?? 0 };
   };
-  const bookMessages = (promptId: string, bookId: string) =>
-    messageCounts.find((c) => c.prompt_id === promptId && c.book_id === bookId)?.count ?? 0;
-  const openChat = (promptId: string, bookId: string | null) => setChat({ ...chat, [promptId]: { bookId } });
-  /** A small "Discuss" / "3 comments" link under a book, opening the discussion about it */
-  const discuss = (prompt: Prompt, book: Book | null) => {
+  const bookMessages = (promptId: string, bookId: string) => {
+    const row = messageCounts.find((c) => c.prompt_id === promptId && c.book_id === bookId);
+    return { count: row?.count ?? 0, unread: row?.unread ?? 0 };
+  };
+
+  // Book threads open under the row they were opened from; a book can appear in several rows
+  // (yours and other people's), so only one shows the thread at a time.
+  const threadKey = (promptId: string, bookId: string) => `${promptId}:${bookId}`;
+  const seenThreads = new Set<string>(); // threads already offered a row in this render
+  const toggleThread = (key: string, rowId: string, isOpen: boolean) =>
+    setThreads({ ...threads, [key]: isOpen ? undefined : rowId });
+
+  /**
+   * "Discuss" / "3 comments · 1 new" under a book. Opens that book's own thread right there,
+   * under this row (rowId says which row, as the same book can be listed more than once).
+   */
+  const discuss = (prompt: Prompt, book: Book | null, rowId: string) => {
     if (!book) return null;
-    const n = bookMessages(prompt.id, book.id);
+    const key = threadKey(prompt.id, book.id);
+    const first = !seenThreads.has(key);
+    seenThreads.add(key);
+    const isOpen = threads[key] === rowId || (threads[key] === 'first' && first);
+    const { count, unread } = bookMessages(prompt.id, book.id);
     return (
-      <button className="link small discuss-link" onClick={() => openChat(prompt.id, book.id)}>
-        {n > 0 ? `${n} ${n === 1 ? 'comment' : 'comments'}` : 'Discuss'}
-      </button>
+      <>
+        <button
+          className="link small discuss-link"
+          aria-expanded={isOpen}
+          onClick={() => toggleThread(key, rowId, isOpen)}
+        >
+          {isOpen
+            ? 'Hide discussion'
+            : count > 0
+              ? `${count} ${count === 1 ? 'comment' : 'comments'}${unread > 0 ? ` · ${unread} new` : ''}`
+              : 'Discuss'}
+        </button>
+        {isOpen && (
+          <div className="book-thread" id={`thread-${prompt.id}-${book.id}`}>
+            <PromptChat
+              key={key}
+              promptId={prompt.id}
+              book={book}
+              myId={me.id}
+              canModerate={canManage}
+              unread={unread}
+              onChanged={data.reload}
+            />
+          </div>
+        )}
+      </>
     );
   };
 
@@ -269,13 +327,13 @@ export default function ChallengePage() {
           const open = expanded[prompt.id];
           const talk = promptMessages(prompt.id);
           const chatOpen = chat[prompt.id];
-          // Every book anyone has read, is reading or is considering for this prompt (for tagging messages)
-          const promptBooks: Book[] = [];
-          for (const x of [...entries, ...considerations]) {
-            if (x.prompt_id === prompt.id && x.books && !promptBooks.some((b) => b.id === x.books!.id)) {
-              promptBooks.push(x.books);
-            }
-          }
+          // Books with a thread here that nobody has on this prompt any more (so no row to show it under)
+          const booksOnPrompt = new Set(
+            [...entries, ...considerations].filter((x) => x.prompt_id === prompt.id).map((x) => x.books?.id),
+          );
+          const alsoDiscussed = messageCounts.filter(
+            (c) => c.prompt_id === prompt.id && c.book_id && c.books && !booksOnPrompt.has(c.book_id),
+          );
 
           const addToMyList = (book: Book | null) =>
             book &&
@@ -326,7 +384,7 @@ export default function ChallengePage() {
                         </div>
                         {entry.notes && <p className="small notes">{entry.notes}</p>}
                         {bookTags(entry.books)}
-                        {discuss(prompt, entry.books)}
+                        {discuss(prompt, entry.books, `e-${entry.id}`)}
                       </div>
                       <button className="link" onClick={() => setDialog({ kind: 'log', prompt, entry })}>Edit</button>
                     </li>
@@ -353,7 +411,7 @@ export default function ChallengePage() {
                           </div>
                           {c.reason && <p className="small notes">{c.reason}</p>}
                           {bookTags(c.books)}
-                          {discuss(prompt, c.books)}
+                          {discuss(prompt, c.books, `r-${c.id}`)}
                         </div>
                         <div className="row idea-actions">
                           {!isDraft && (
@@ -386,7 +444,7 @@ export default function ChallengePage() {
                           {c.books?.author && <span className="muted"> — {c.books.author}</span>}
                           {c.reason && <p className="small notes">{c.reason}</p>}
                           {bookTags(c.books)}
-                          {discuss(prompt, c.books)}
+                          {discuss(prompt, c.books, `c-${c.id}`)}
                         </div>
                         <div className="row idea-actions">
                           {!isDraft && (
@@ -467,7 +525,7 @@ export default function ChallengePage() {
                                   </div>
                                   {e.notes && <p className="small notes">{e.notes}</p>}
                                   {bookTags(e.books)}
-                                  {discuss(prompt, e.books)}
+                                  {discuss(prompt, e.books, `oe-${e.id}`)}
                                 </div>
                                 {addToMyList(e.books)}
                               </li>
@@ -490,7 +548,7 @@ export default function ChallengePage() {
                                     <span><PersonLink id={c.user_id} name={c.profiles?.display_name} /> · about {c.progress ?? 0}%</span>
                                   </div>
                                   {bookTags(c.books)}
-                                  {discuss(prompt, c.books)}
+                                  {discuss(prompt, c.books, `or-${c.id}`)}
                                 </div>
                                 {addToMyList(c.books)}
                               </li>
@@ -511,7 +569,7 @@ export default function ChallengePage() {
                                   <div className="small muted"><PersonLink id={c.user_id} name={c.profiles?.display_name} /></div>
                                   {c.reason && <p className="small notes">{c.reason}</p>}
                                   {bookTags(c.books)}
-                                  {discuss(prompt, c.books)}
+                                  {discuss(prompt, c.books, `oc-${c.id}`)}
                                 </div>
                                 {addToMyList(c.books)}
                               </li>
@@ -527,23 +585,33 @@ export default function ChallengePage() {
               <div className="discussion">
                 <button
                   className="link small"
-                  onClick={() => setChat({ ...chat, [prompt.id]: chatOpen ? undefined : { bookId: null } })}
+                  onClick={() => setChat({ ...chat, [prompt.id]: chatOpen ? undefined : true })}
                   aria-expanded={!!chatOpen}
                 >
-                  {chatOpen ? 'Hide discussion' : 'Discussion'}
+                  {chatOpen ? 'Hide discussion' : 'Discuss this prompt'}
                   {talk.count > 0 && ` (${talk.count}${talk.unread > 0 ? ` · ${talk.unread} new` : ''})`}
                 </button>
                 {chatOpen && (
                   <PromptChat
-                    key={`${prompt.id}:${chatOpen.bookId ?? ''}`}
+                    key={prompt.id}
                     promptId={prompt.id}
-                    books={promptBooks}
-                    initialBookId={chatOpen.bookId}
                     myId={me.id}
                     canModerate={canManage}
                     unread={talk.unread}
                     onChanged={data.reload}
                   />
+                )}
+                {alsoDiscussed.length > 0 && (
+                  <>
+                    <p className="small muted also-discussed-label">Also discussed:</p>
+                    <ul className="also-discussed">
+                      {alsoDiscussed.map((c) => (
+                        <li key={c.book_id}>
+                          <strong className="small">{c.books!.title}</strong> {discuss(prompt, c.books, `also-${c.book_id}`)}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
                 )}
               </div>
             </li>

@@ -336,3 +336,32 @@ input[type="range"]:focus { outline-offset: 4px; }
 .stat:hover:not(:disabled) span { color: var(--green); }
 [id^='profile-'] { scroll-margin-top: 1rem; }
 .back-to-top { margin: 1rem 0 0; text-align: right; }
+.back-to-top.page-end { text-align: center; }
+
+/* Back to top, at the end of any page that scrolls */
+.page-end { margin: 2rem 0 0.5rem; text-align: center; }
+
+/* Profile picture, and the featured book */
+.profile-head { display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.profile-head h1 { margin: 0; }
+.profile-head .grow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.avatar { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; flex: none; background: var(--sage); border: 2px solid var(--gold-line); }
+.avatar-blank { display: grid; place-items: center; font-family: var(--serif); font-size: 1.9rem; font-weight: 600; color: var(--green); }
+.avatar-lg { width: 112px; height: 112px; font-size: 2.8rem; }
+.featured { display: flex; gap: 1rem; align-items: flex-start; }
+.featured .cover { width: 84px; height: 126px; }
+.featured h3 { margin: 0; }
+.featured-note { margin-top: 0.5rem; }
+.featured-empty { display: flex; gap: 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.photo-edit { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.photo-edit .row { gap: 0.5rem; }
+.file-input { display: none; }
+
+/* Discussion under a book, and "also discussed" books */
+.book-thread { margin-top: 0.5rem; padding-left: 0.7rem; border-left: 3px solid var(--sage-mid); width: 100%; }
+.book-thread .chat { margin-top: 0.3rem; }
+.also-discussed { list-style: none; padding: 0; margin: 0.4rem 0 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.discussion-found { margin-top: 0.7rem; background: var(--paper-soft); border-radius: 14px; padding: 0.6rem 0.9rem; }
+.discussion-found .message { max-width: 100%; align-self: stretch; }
+.discussion-found .chat-list { max-height: none; }
+.message-where { margin: 0.25rem 0 0; }

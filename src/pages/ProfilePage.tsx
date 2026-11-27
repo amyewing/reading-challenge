@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
-import { useMe } from '../App';
+import { useMe, useRenameMe } from '../App';
 import type { Book, Consideration, Role } from '../lib/types';
+import Avatar from '../components/Avatar';
 import BookCover from '../components/BookCover';
+import EditProfileDialog from '../components/EditProfileDialog';
 import MiniBar from '../components/MiniBar';
 import ReadingProgressDialog from '../components/ReadingProgressDialog';
+import RichText from '../components/RichText';
 
 interface ProfileGroup {
   id: string;
@@ -55,7 +58,13 @@ interface ProfileConsideration extends WithPrompt {
 }
 
 interface Profile {
-  person: { id: string; display_name: string };
+  person: {
+    id: string;
+    display_name: string;
+    avatar: string | null;
+    featured_book: Book | null;
+    featured_note: string | null;
+  };
   groups: ProfileGroup[];
   challenges: ProfileChallenge[];
   entries: ProfileEntry[];
@@ -83,12 +92,12 @@ function jumpTo(id: string) {
 }
 
 /** After a long list: a way back up to the jump links */
-function BackToTop({ show }: { show: boolean }) {
+function BackToJumpLinks({ show }: { show: boolean }) {
   if (!show) return null;
   return (
     <p className="back-to-top small">
       <button type="button" className="link" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-        Back to top
+        Back to the numbers at the top
       </button>
     </p>
   );
@@ -108,7 +117,9 @@ function Where({ row }: { row: WithPrompt }) {
 export default function ProfilePage() {
   const { userId } = useParams();
   const me = useMe();
+  const renameMe = useRenameMe();
   const [updating, setUpdating] = useState<ProfileConsideration | null>(null);
+  const [editing, setEditing] = useState(false);
 
   const data = useAsync(() => api<Profile>(`/api/people/${encodeURIComponent(userId ?? '')}`), [userId]);
 
@@ -130,10 +141,34 @@ export default function ProfilePage() {
   return (
     <>
       <p className="crumbs"><Link to="/">Groups</Link> /</p>
-      <div className="section-head title-head">
-        <h1>{person.display_name}{isMe && ' (you)'}</h1>
+      <div className="profile-head">
+        <Avatar name={person.display_name} src={person.avatar} />
+        <div className="grow">
+          <h1>{person.display_name}{isMe && ' (you)'}</h1>
+          {isMe && <button onClick={() => setEditing(true)}>Edit profile</button>}
+        </div>
       </div>
       {!isMe && <p className="small muted">You can see the groups and challenges you share with {person.display_name}.</p>}
+
+      {person.featured_book ? (
+        <section className="card featured" id="profile-featured">
+          <BookCover book={person.featured_book} />
+          <div className="grow">
+            <p className="eyebrow">{isMe ? 'Currently featuring' : `${person.display_name} is featuring`}</p>
+            <h3>{person.featured_book.title}</h3>
+            {person.featured_book.author && <p className="muted">{person.featured_book.author}</p>}
+            {person.featured_note && <RichText text={person.featured_note} clamp className="featured-note" />}
+          </div>
+          {isMe && <button className="link small" onClick={() => setEditing(true)}>Change</button>}
+        </section>
+      ) : (
+        isMe && (
+          <section className="card featured-empty">
+            <p className="muted">Is there a book you love right now? Feature it here and say why.</p>
+            <button onClick={() => setEditing(true)}>Feature a book</button>
+          </section>
+        )
+      )}
 
       <nav className="card stat-strip" aria-label="Jump to a section">
         {[
@@ -205,7 +240,7 @@ export default function ProfilePage() {
             );
           })}
         </ul>
-        <BackToTop show={readBooks.length > LONG_LIST} />
+        <BackToJumpLinks show={readBooks.length > LONG_LIST} />
       </section>
 
       <section className="card" id="profile-considering">
@@ -228,7 +263,7 @@ export default function ProfilePage() {
             </li>
           ))}
         </ul>
-        <BackToTop show={consideringBooks.length > LONG_LIST} />
+        <BackToJumpLinks show={consideringBooks.length > LONG_LIST} />
       </section>
 
       <div className="section-head" id="profile-challenges"><h2>Challenges</h2></div>
@@ -271,6 +306,17 @@ export default function ProfilePage() {
         ))}
       </div>
 
+      {editing && (
+        <EditProfileDialog
+          person={person}
+          onClose={() => setEditing(false)}
+          onSaved={(name) => {
+            setEditing(false);
+            renameMe(name);
+            data.reload();
+          }}
+        />
+      )}
       {updating && (
         <ReadingProgressDialog
           prompt={{ id: updating.prompt_id, position: 0, title: updating.prompt_title, description: null }}

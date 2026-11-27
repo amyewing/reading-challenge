@@ -26,7 +26,11 @@ create table profiles (
   display_name  text not null,
   email         text,
   created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
+  updated_at    timestamptz not null default now(),
+  display_name_custom boolean not null default false,          -- true once they set their own name
+  avatar        text check (avatar is null or (avatar like 'data:image/jpeg;base64,%' and length(avatar) <= 80000)),
+  featured_book_id uuid,                                       -- references books(id), added after books
+  featured_note text check (featured_note is null or length(featured_note) <= 1000)
 );
 
 create table groups (
@@ -96,6 +100,9 @@ create table books (
   created_at        timestamptz not null default now()
 );
 
+alter table profiles add constraint profiles_featured_book_fk
+  foreign key (featured_book_id) references books(id) on delete set null;
+
 -- A person logging a book against one prompt of a challenge
 -- (several different books can count toward the same prompt)
 create table entries (
@@ -131,7 +138,7 @@ create table considerations (
 );
 create index considerations_challenge_idx on considerations (challenge_id);
 
--- One discussion thread per prompt; a message can be about one of the books
+-- Discussion on a prompt: a general thread, plus one thread for each book (book_id)
 create table prompt_messages (
   id            uuid primary key default gen_random_uuid(),
   challenge_id  uuid not null references challenges(id) on delete cascade,
@@ -146,12 +153,14 @@ create table prompt_messages (
 create index prompt_messages_prompt_idx on prompt_messages (prompt_id, created_at);
 create index prompt_messages_challenge_idx on prompt_messages (challenge_id);
 
--- When each person last opened a prompt's discussion (drives "new" counts)
+-- When each person last opened a discussion thread (drives "new" counts).
+-- book_id is null for the prompt's general thread, or the book whose thread it is.
 create table prompt_message_reads (
   prompt_id     uuid not null references prompts(id) on delete cascade,
   user_id       text not null default current_user_id() references profiles(id) on delete cascade,
+  book_id       uuid references books(id) on delete cascade,
   last_read_at  timestamptz not null default now(),
-  primary key (prompt_id, user_id)
+  unique nulls not distinct (prompt_id, user_id, book_id)
 );
 
 -- Tag library: suggested tags (see db/tags_seed.sql) plus tags people add
@@ -259,7 +268,7 @@ begin
   insert into profiles (id, display_name, email)
   values (uid, coalesce(nullif(trim(p_display_name), ''), 'Reader'), p_email)
   on conflict (id) do update
-    set display_name = excluded.display_name,
+    set display_name = case when profiles.display_name_custom then profiles.display_name else excluded.display_name end,
         email        = excluded.email,
         updated_at   = now();
 end;

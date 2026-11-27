@@ -13,6 +13,7 @@ import FindBooks from './pages/FindBooks';
 import GroupSettings from './pages/GroupSettings';
 import ProfilePage from './pages/ProfilePage';
 import Logo from './components/Logo';
+import BackToTop from './components/BackToTop';
 
 export const PENDING_INVITE_KEY = 'pendingInvite';
 
@@ -21,6 +22,12 @@ export function useMe(): Me {
   const me = useContext(MeContext);
   if (!me) throw new Error('useMe must be used inside a signed-in page');
   return me;
+}
+
+const RenameMeContext = createContext<(name: string) => void>(() => undefined);
+/** Update the name shown for you in the top bar after you change it on your profile */
+export function useRenameMe() {
+  return useContext(RenameMeContext);
 }
 
 /** Works with both v4 (snake_case) and v5 (camelCase) of the Kinde React SDK. */
@@ -69,9 +76,13 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        await api('/api/me', { method: 'PUT', body: { displayName: user.name, email: user.email } });
+        const saved = await api<{ displayName?: string | null }>('/api/me', {
+          method: 'PUT',
+          body: { displayName: user.name, email: user.email },
+        });
         if (cancelled) return;
-        setMe({ id: user.id, name: user.name });
+        // A name you chose yourself on your profile wins over the one from sign-in
+        setMe({ id: user.id, name: saved?.displayName || user.name });
         const pending = localStorage.getItem(PENDING_INVITE_KEY);
         if (pending && !location.pathname.startsWith('/invite/')) navigate(`/invite/${pending}`);
       } catch (e: any) {
@@ -135,6 +146,7 @@ export default function App() {
 
   return (
     <MeContext.Provider value={me}>
+     <RenameMeContext.Provider value={(name) => setMe((m) => (m ? { ...m, name } : m))}>
       <header className="topbar">
         <Link to="/" className="brand" aria-label="Reading Challenge, home">
           <Logo />
@@ -168,7 +180,9 @@ export default function App() {
           <Route path="/me" element={<Navigate to={`/people/${encodeURIComponent(me.id)}`} replace />} />
           <Route path="*" element={<p>Page not found. <Link to="/">Go home</Link></p>} />
         </Routes>
+        <BackToTop />
       </main>
+     </RenameMeContext.Provider>
     </MeContext.Provider>
   );
 }

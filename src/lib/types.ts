@@ -101,7 +101,7 @@ export interface Me {
   name: string;
 }
 
-/** A message in a prompt's discussion; `books` is set when it is about one book */
+/** A message in a discussion thread (the prompt's general thread, or one book's thread on it) */
 export interface PromptMessage {
   id: string;
   prompt_id: string;
@@ -110,14 +110,14 @@ export interface PromptMessage {
   spoiler: boolean;
   created_at: string;
   edited_at: string | null;
-  books: Book | null;
   profiles: Pick<Profile, 'display_name'> | null;
 }
 
-/** How many messages a prompt (or one book on it) has, and how many are new to you */
+/** How many messages a thread has (book_id null: the prompt's general thread), and how many are new to you */
 export interface MessageCount {
   prompt_id: string;
   book_id: string | null;
   count: number;
   unread: number;
+  books: Book | null;
 }

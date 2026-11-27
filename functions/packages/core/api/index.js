@@ -6286,7 +6286,32 @@ route("PUT", "/api/me", async ({ q, body }) => {
     text(body.displayName, "Name", { max: 80 }) ?? "Reader",
     text(body.email, "Email", { max: 320 })
   ]);
-  return { ok: true };
+  const [me] = await q("select display_name from profiles where id = current_user_id()");
+  return { ok: true, displayName: me?.display_name ?? null };
+});
+function avatarData(value) {
+  if (value === null || value === "") return null;
+  if (typeof value !== "string" || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(value)) {
+    throw badRequest("The picture must be a JPEG image.");
+  }
+  if (value.length > 8e4) throw badRequest("That picture is too large.");
+  return value;
+}
+route("PUT", "/api/me/profile", async ({ q, body }) => {
+  const [current] = await q("select display_name, avatar, featured_book_id, featured_note from profiles where id = current_user_id()");
+  if (!current) throw notFound("Your profile was not found.");
+  const displayName = body.displayName === void 0 ? current.display_name : text(body.displayName, "Name", { max: 80, required: true });
+  const avatar = body.avatar === void 0 ? current.avatar : avatarData(body.avatar);
+  const featuredBook = body.featuredBook === void 0 ? current.featured_book_id : body.featuredBook === null ? null : await resolveBook(q, body.featuredBook);
+  const note = body.featuredNote === void 0 ? current.featured_note : text(body.featuredNote, "Note", { max: 1e3 });
+  await q(
+    `update profiles
+     set display_name_custom = display_name_custom or $1::text <> display_name,
+         display_name = $1, avatar = $2, featured_book_id = $3, featured_note = $4, updated_at = now()
+     where id = current_user_id()`,
+    [displayName, avatar, featuredBook, featuredBook ? note : null]
+  );
+  return { ok: true, displayName };
 });
 route(
   "GET",
@@ -6569,11 +6594,15 @@ route("GET", "/api/challenges/:challengeId", async ({ q, params }) => {
   const messageCounts = await q(
     `select m.prompt_id, m.book_id, count(*)::int as count,
             count(*) filter (where m.user_id <> current_user_id()
-                               and m.created_at > coalesce(r.last_read_at, '-infinity'))::int as unread
+                               and m.created_at > coalesce(r.last_read_at, '-infinity'))::int as unread,
+            case when b.id is null then null
+                 else json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url) end as books
      from prompt_messages m
+     left join books b on b.id = m.book_id
      left join prompt_message_reads r on r.prompt_id = m.prompt_id and r.user_id = current_user_id()
+                                     and r.book_id is not distinct from m.book_id
      where m.challenge_id = $1
-     group by m.prompt_id, m.book_id, r.last_read_at`,
+     group by m.prompt_id, m.book_id, b.id, r.last_read_at`,
     [params.challengeId]
   );
   return { challenge, prompts, entries, considerations, members, bookTags, messageCounts };
@@ -6761,63 +6790,66 @@ var MAX_MESSAGES_SHOWN = 500;
 function messageInput(body) {
   return {
     text: text(body.body, "Message", { max: 4e3, required: true }),
-    bookId: typeof body.bookId === "string" ? body.bookId : null,
     spoiler: body.spoiler === true
   };
 }
 async function checkMessageBook(q, bookId) {
-  if (bookId === null) return;
-  if (!new RegExp(`^${UUID}$`).test(bookId)) throw badRequest("That book was not found.");
   const [book] = await q("select id from books where id = $1", [bookId]);
-  if (!book) throw badRequest("That book was not found.");
+  if (!book) throw notFound("That book was not found.");
 }
-async function markMessagesRead(q, promptId) {
+async function markMessagesRead(q, promptId, bookId) {
   await q(
-    `insert into prompt_message_reads (prompt_id, user_id, last_read_at) values ($1, current_user_id(), now())
-     on conflict (prompt_id, user_id) do update set last_read_at = now()`,
-    [promptId]
+    `insert into prompt_message_reads (prompt_id, user_id, book_id, last_read_at)
+     values ($1, current_user_id(), $2::uuid, now())
+     on conflict (prompt_id, user_id, book_id) do update set last_read_at = now()`,
+    [promptId, bookId]
   );
 }
-route("GET", "/api/prompts/:promptId/messages", async ({ q, params }) => {
-  await visiblePrompt(q, params.promptId);
+async function listMessages(q, promptId, bookId) {
+  await visiblePrompt(q, promptId);
   const messages = await q(
     `select * from (
        select m.id, m.prompt_id, m.user_id, m.body, m.spoiler, m.created_at, m.edited_at,
-              case when b.id is null then null
-                   else json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url) end as books,
               json_build_object('display_name', p.display_name) as profiles
        from prompt_messages m
        join profiles p on p.id = m.user_id
-       left join books b on b.id = m.book_id
-       where m.prompt_id = $1
+       where m.prompt_id = $1 and m.book_id is not distinct from $2::uuid
        order by m.created_at desc
        limit ${MAX_MESSAGES_SHOWN}) latest
      order by created_at`,
-    [params.promptId]
+    [promptId, bookId]
   );
-  await markMessagesRead(q, params.promptId);
+  await markMessagesRead(q, promptId, bookId);
   return messages;
-});
-route("POST", "/api/prompts/:promptId/messages", async ({ q, params, body }) => {
-  const prompt = await visiblePrompt(q, params.promptId);
+}
+async function postMessage(q, promptId, bookId, body) {
+  const prompt = await visiblePrompt(q, promptId);
   const input = messageInput(body);
-  await checkMessageBook(q, input.bookId);
   const [row] = await q(
     `insert into prompt_messages (challenge_id, prompt_id, user_id, book_id, body, spoiler)
      values ($1, $2, current_user_id(), $3, $4, $5)
      returning id`,
-    [prompt.challenge_id, params.promptId, input.bookId, input.text, input.spoiler]
+    [prompt.challenge_id, promptId, bookId, input.text, input.spoiler]
   );
-  await markMessagesRead(q, params.promptId);
+  await markMessagesRead(q, promptId, bookId);
   return { id: row.id };
+}
+route("GET", "/api/prompts/:promptId/messages", async ({ q, params }) => listMessages(q, params.promptId, null));
+route("POST", "/api/prompts/:promptId/messages", async ({ q, params, body }) => postMessage(q, params.promptId, null, body));
+route("GET", "/api/prompts/:promptId/books/:bookId/messages", async ({ q, params }) => {
+  await checkMessageBook(q, params.bookId);
+  return listMessages(q, params.promptId, params.bookId);
+});
+route("POST", "/api/prompts/:promptId/books/:bookId/messages", async ({ q, params, body }) => {
+  await checkMessageBook(q, params.bookId);
+  return postMessage(q, params.promptId, params.bookId, body);
 });
 route("PUT", "/api/messages/:messageId", async ({ q, params, body }) => {
   const input = messageInput(body);
-  await checkMessageBook(q, input.bookId);
   const rows = await q(
-    `update prompt_messages set body = $2, book_id = $3, spoiler = $4, edited_at = now()
+    `update prompt_messages set body = $2, spoiler = $3, edited_at = now()
      where id = $1 and user_id = current_user_id() returning id`,
-    [params.messageId, input.text, input.bookId, input.spoiler]
+    [params.messageId, input.text, input.spoiler]
   );
   if (!rows.length) throw new HttpError(403, "You can only edit your own messages.");
   return { id: rows[0].id };
@@ -6828,7 +6860,14 @@ route("DELETE", "/api/messages/:messageId", async ({ q, params }) => {
   return { ok: true };
 });
 route("GET", "/api/people/:userId", async ({ q, params }) => {
-  const [person] = await q("select id, display_name from profiles where id = $1", [params.userId]);
+  const [person] = await q(
+    `select p.id, p.display_name, p.avatar, p.featured_note,
+            case when b.id is null then null
+                 else json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url) end as featured_book
+     from profiles p left join books b on b.id = p.featured_book_id
+     where p.id = $1`,
+    [params.userId]
+  );
   if (!person) throw notFound("This person doesn't exist, or you don't share a group with them.");
   const groups = await q(
     `select g.id, g.name, g.description, m.role,
@@ -6961,7 +7000,17 @@ route("POST", "/api/books/search", async ({ q, body }) => {
                 join prompts pr on pr.id = k.prompt_id
                 join challenges c on c.id = k.challenge_id
                 where k.book_id = b.id
-                order by k.created_at desc limit 10) r), '[]') as considering
+                order by k.created_at desc limit 10) r), '[]') as considering,
+            (select count(*)::int from prompt_messages m where m.book_id = b.id) as discussion_count,
+            coalesce((select json_agg(d order by d.created_at desc) from (
+                select m.id, m.body, m.spoiler, m.created_at, m.user_id, p.display_name, m.prompt_id,
+                       pr.title as prompt_title, c.id as challenge_id, c.title as challenge_title
+                from prompt_messages m
+                join profiles p on p.id = m.user_id
+                join prompts pr on pr.id = m.prompt_id
+                join challenges c on c.id = m.challenge_id
+                where m.book_id = b.id
+                order by m.created_at desc limit 3) d), '[]') as discussions
      from books b
      where (cardinality($1::uuid[]) = 0
             or (select count(distinct bt.tag_id) from book_tags bt
@@ -6970,8 +7019,10 @@ route("POST", "/api/books/search", async ({ q, body }) => {
        and (cardinality($1::uuid[]) > 0 or $2::text is not null
             or exists (select 1 from book_tags bt where bt.book_id = b.id)
             or exists (select 1 from entries e where e.book_id = b.id)
-            or exists (select 1 from considerations k where k.book_id = b.id))
+            or exists (select 1 from considerations k where k.book_id = b.id)
+            or exists (select 1 from prompt_messages m where m.book_id = b.id))
      order by greatest(
+       (select max(created_at) from prompt_messages where book_id = b.id),
        (select max(created_at) from book_tags where book_id = b.id),
        (select max(created_at) from entries where book_id = b.id),
        (select max(created_at) from considerations where book_id = b.id),

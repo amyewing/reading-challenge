@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { refreshTags, useTags } from '../lib/tags';
 import type { Book, BookTag } from '../lib/types';
 import BookCover from '../components/BookCover';
+import ChatMessage from '../components/ChatMessage';
 import TagChips from '../components/TagChips';
 import TagPicker from '../components/TagPicker';
 import BookTagsDialog from '../components/BookTagsDialog';
@@ -17,10 +18,27 @@ interface Activity {
   reason?: string | null;
 }
 
+/** A message about this book, from a challenge in one of your groups */
+interface Discussion {
+  id: string;
+  body: string;
+  spoiler: boolean;
+  created_at: string;
+  user_id: string;
+  display_name: string;
+  prompt_id: string;
+  prompt_title: string;
+  challenge_id: string;
+  challenge_title: string;
+}
+
 interface BookResult extends Book {
   tags: BookTag[];
   reads: Activity[];
   considering: Activity[];
+  discussion_count: number;
+  /** The latest few messages */
+  discussions: Discussion[];
 }
 
 /** Find books by tag (all selected tags must match) and/or title or author. */
@@ -86,7 +104,7 @@ export default function FindBooks() {
       <h1>Find books</h1>
       <p className="muted">
         Look for books by tag, title or author. Results show every book anyone has tagged, plus what people in your
-        groups have read or are considering.
+        groups have read, are considering or have been discussing.
       </p>
 
       <section className="card find-filters">
@@ -173,6 +191,33 @@ export default function FindBooks() {
                         </li>
                       ))}
                     </ul>
+                  )}
+                  {b.discussion_count > 0 && (
+                    <div className="discussion-found">
+                      <p className="eyebrow">
+                        Discussion ({b.discussion_count})
+                        {b.discussion_count > b.discussions.length && ` · latest ${b.discussions.length}`}
+                      </p>
+                      <div className="chat-list">
+                        {b.discussions.map((d) => (
+                          <ChatMessage
+                            key={d.id}
+                            userId={d.user_id}
+                            name={d.display_name}
+                            body={d.body}
+                            spoiler={d.spoiler}
+                            createdAt={d.created_at}
+                          >
+                            <p className="small muted message-where">
+                              for “{d.prompt_title}” in {d.challenge_title} ·{' '}
+                              <Link to={`/challenges/${d.challenge_id}?discuss=${d.prompt_id}&book=${b.id}`}>
+                                Join the discussion
+                              </Link>
+                            </p>
+                          </ChatMessage>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
               </li>
