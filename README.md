@@ -24,7 +24,7 @@ The database connection string is a secret that lives only on the server. The br
 - Owners and admins create invite links that last 14 days, and can revoke them
 - **Manage group** (owners and admins): edit the group's name and description and remove members. The owner can also make members admins (or not) and delete the group. Deleting asks you to type the group's name, and removes its challenges and everyone's logged books for them.
 - **Hand over** a group (the owner makes another member the owner and stays on as an admin) or a challenge (its organiser or a group admin picks a new organiser from the group, on the Edit challenge page)
-- Anyone in a group can create a challenge: a title, dates, and prompts (type them one by one or paste several at once). Each prompt can have an **About this prompt** note (up to 5,000 characters) to explain what a genre is, why the prompt was chosen, or give examples. Paragraphs are kept, web addresses become links, and long notes fold behind "Read more".
+- Anyone in a group can create a challenge: a title, dates, and prompts (type them one by one or paste several at once). Each prompt can have an **About this prompt** note (up to 5,000 characters) to explain what a genre is, why the prompt was chosen, or give examples. Paragraphs are kept, web addresses become links, and notes longer than three lines fold behind "Read more".
 - New challenges start as **drafts**, visible only to their creator and the group's admins. Edit them as often as you like (reword, reorder, add or remove prompts), then **launch** them for the group. Launched challenges can still be edited, but a prompt with logged books can't be removed.
 - **Consider** books while planning: add books you might read for a prompt, with why they'd fit. Everyone in the group sees each other's lists, and can add someone else's idea (or a book someone already read) to their own list with one click. When you log a book from your list, it comes off the list.
 - Log a book against a prompt: search Open Library (by anything, title only, or author only) or type it in, then add a finish date, a rating and notes. Several different books can count toward the same prompt.
@@ -33,7 +33,7 @@ The database connection string is a secret that lives only on the server. The br
 - **Start reading** a book (from your list or a new one) and say roughly how far through it you are (a rough percentage, updated whenever you like). Logging it as read finishes it. Everyone sees who is reading what, who has started a challenge, and who has not.
 - **Discuss** each prompt: a general thread for how to interpret the prompt, and a thread for each book that lives right under that book (each book shows its comment count and how many are new to you). Messages can be marked as containing spoilers, which stay blurred until someone taps to show them. You edit and delete your own messages; a challenge's organiser and group admins can delete any. Threads about a book that is no longer on the prompt stay reachable under "Also discussed".
 - See everyone's progress (books read, plus prompts they have a book in mind for), and what others read or are considering for each prompt. Hide the prompts you've finished to focus on what's left.
-- **Profiles**: "My profile" in the top bar (next to Home and Find books) opens your profile, where the numbers at the top jump to each section. It shows your groups, your challenges (with how far you are in each), and every book you have read, are reading or are considering. Click anyone's name to see theirs: you only see the groups and challenges you share with them, and never their email. On your own profile, **Edit profile** lets you change your display name (it stays when you sign in again), add a profile picture (shrunk to a small square in your browser), and feature a book with a note on why: it needn't be your favourite, just one you are enthusiastic about right now.
+- **Profiles**: "My profile" in the top bar (next to Home and Find books) opens your profile, where the numbers at the top jump to each section. It shows your groups, your challenges (with how far you are in each), and every book you have read, are reading or are considering. Click anyone's name to see theirs: you only see the groups and challenges you share with them, and never their email. On your own profile, **Edit profile** lets you change your display name (it stays when you sign in again), add a profile picture (a photo, shrunk to a small square in your browser, or one of the built-in literary icons: open book, quill, owl, teacup and more), and feature a book with a note on why: it needn't be your favourite, just one you are enthusiastic about right now. Your picture shows beside your name in group member lists and challenge progress.
 - A **Back to top** link at the bottom of any page that scrolls.
 - Leave a group. Challenge creators and admins can delete a challenge
 
@@ -72,7 +72,7 @@ Check everything compiles with `npm run typecheck`.
 
 ### Neon (database)
 1. Create a project.
-2. On a new database, run [db/schema.sql](db/schema.sql) and then [db/tags_seed.sql](db/tags_seed.sql) in the SQL Editor. The existing database was created with an earlier version and has been brought up to date with the files in [db/migrations/](db/migrations/), in order (002 to 009, with the tag seed after 006). Read each file's header first: 005 must be applied only after the API that goes with it is deployed, and 009 (needs PostgreSQL 15 or newer) must be applied before the API that goes with it is deployed. The tag seed can be re-run at any time to add new suggested tags.
+2. On a new database, run [db/schema.sql](db/schema.sql) and then [db/tags_seed.sql](db/tags_seed.sql) in the SQL Editor. The existing database was created with an earlier version and has been brought up to date with the files in [db/migrations/](db/migrations/), in order (002 to 010, with the tag seed after 006). Read each file's header first: 005 must be applied only after the API that goes with it is deployed, and 009 (needs PostgreSQL 15 or newer) and 010 must be applied before the API that goes with them is deployed. The tag seed can be re-run at any time to add new suggested tags.
 3. For `DATABASE_URL`, use **Connect**, role `neondb_owner`, with **Connection pooling** on.
 4. The Neon **Data API** is not used and should stay disabled.
 
@@ -108,7 +108,7 @@ src/pages/               screens: Home, GroupPage, GroupSettings, NewChallenge, 
 src/components/          BookPicker (Open Library search), LogBookDialog, ConsiderDialog,
                          Logo, ReadingProgressDialog, PromptChat, TagPicker, TagChips, BookTagsDialog,
                          ChallengeEditor, BookCover, RichText (notes with links), MiniBar, PersonLink,
-                         ChatMessage, Avatar, EditProfileDialog, BackToTop
+                         ChatMessage, Avatar (photo, icon or initial), EditProfileDialog, BackToTop
 ```
 
 ## Ideas for next steps

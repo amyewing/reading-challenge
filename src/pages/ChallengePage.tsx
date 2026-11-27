@@ -12,6 +12,7 @@ import RichText from '../components/RichText';
 import MiniBar from '../components/MiniBar';
 import PersonLink from '../components/PersonLink';
 import BookTagsDialog from '../components/BookTagsDialog';
+import Avatar from '../components/Avatar';
 import BookCover from '../components/BookCover';
 import TagChips from '../components/TagChips';
 
@@ -173,6 +174,8 @@ export default function ChallengePage() {
       return {
         id: m.user_id,
         name: m.profiles?.display_name ?? 'Reader',
+        avatar: m.profiles?.avatar,
+        preset: m.profiles?.avatar_preset,
         count: read.size,
         reading: readingPrompts.size,
         readingNow,
@@ -271,7 +274,10 @@ export default function ChallengePage() {
               const note = progressNote(p);
               return (
                 <li key={p.id}>
-                  <span className="progress-name"><PersonLink id={p.id} name={p.name} />{p.id === me.id && ' (you)'}</span>
+                  <span className="progress-name with-avatar">
+                    <Avatar size="sm" name={p.name} src={p.avatar} preset={p.preset} />
+                    <span className="progress-name-text"><PersonLink id={p.id} name={p.name} />{p.id === me.id && ' (you)'}</span>
+                  </span>
                   <span
                     className="bar"
                     title={`${p.count} read${p.reading ? `, ${p.reading} being read` : ''}${p.planned ? `, ${p.planned} more with books in mind` : ''}`}

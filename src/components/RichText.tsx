@@ -1,8 +1,6 @@
-import { useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 const URL_PATTERN = /(https?:\/\/[^\s<]+)/g;
-const LONG_TEXT = 280;
-const LONG_LINES = 4;
 
 /** Turn the links in one line of text into anchors. Trailing punctuation stays out of the link. */
 function linkify(line: string): ReactNode[] {
@@ -21,24 +19,47 @@ function linkify(line: string): ReactNode[] {
 
 interface Props {
   text: string;
-  /** Fold long text behind a "Read more" toggle */
+  /** Fold long text behind a "Read more" toggle, showing only the first few lines */
   clamp?: boolean;
+  /** How many lines to show while folded */
+  lines?: number;
   className?: string;
 }
 
 /**
  * Plain text from a person, shown safely: blank lines make paragraphs, single new lines
  * make line breaks, and web addresses become links. Nothing is ever treated as HTML.
+ *
+ * With `clamp`, text that runs past `lines` lines (as actually laid out, so it depends on the
+ * width of the screen) shows just those lines with "Read more"; shorter text shows in full.
  */
-export default function RichText({ text, clamp = false, className = '' }: Props) {
+export default function RichText({ text, clamp = false, lines = 3, className = '' }: Props) {
   const [open, setOpen] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const paragraphs = text.trim().split(/\n\s*\n/);
-  const long = clamp && (text.length > LONG_TEXT || text.trim().split('\n').length > LONG_LINES);
-  const folded = long && !open;
+  const folded = clamp && !open;
+
+  // While folded, see whether the clipped text is taller than what shows
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el || !folded) return;
+    const check = () => setOverflows(el.scrollHeight > el.clientHeight + 1);
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [folded, text, lines]);
+
+  const showToggle = clamp && (open || overflows);
 
   return (
     <div className={`rich-text ${className}`}>
-      <div className={folded ? 'rich-body folded' : 'rich-body'}>
+      <div
+        ref={bodyRef}
+        className={folded ? 'rich-body folded' : 'rich-body'}
+        style={folded ? ({ '--lines': lines } as CSSProperties) : undefined}
+      >
         {paragraphs.map((p, i) => (
           <p key={i}>
             {p.split('\n').map((line, j) => (
@@ -50,7 +71,7 @@ export default function RichText({ text, clamp = false, className = '' }: Props)
           </p>
         ))}
       </div>
-      {long && (
+      {showToggle && (
         <button type="button" className="link small" onClick={() => setOpen(!open)} aria-expanded={open}>
           {open ? 'Show less' : 'Read more'}
         </button>

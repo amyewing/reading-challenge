@@ -148,12 +148,13 @@ button.icon { padding: 0.3rem 0.6rem; }
 /* Group page */
 .member-list { list-style: none; padding: 0; margin: 0 0 1rem; }
 .member-list li { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--line); }
+.member-list li:last-child { border-bottom: none; }
 .member-list.manage li { gap: 0.75rem; padding: 0.65rem 0; }
 .member-actions { gap: 0.75rem; flex-wrap: nowrap; }
 .member-actions button.small { font-size: 0.85rem; padding: 0.3rem 0.75rem; }
 .danger-button { background: var(--danger); border-color: var(--danger); color: #fff; }
 .danger-button:hover { background: #8f2a23; }
-.invites { border-top: 1px solid var(--line); padding-top: 0.9rem; margin-bottom: 0.9rem; }
+.invites { padding-top: 0.4rem; margin-bottom: 0.9rem; }
 .invites h3 { margin-bottom: 0.2rem; }
 .invite-row { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.5rem; }
 .invite-row input { font-size: 0.8rem; padding: 0.4rem; }
@@ -311,7 +312,7 @@ input[type="range"]:focus { outline-offset: 4px; }
 .prompt-extra .prompt-details { width: 100%; resize: vertical; line-height: 1.45; }
 .rich-text p { margin: 0 0 0.55em; overflow-wrap: anywhere; }
 .rich-text p:last-child { margin-bottom: 0; }
-.rich-body.folded { max-height: 6.4em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); }
+.rich-body.folded { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--lines, 3); line-clamp: var(--lines, 3); overflow: hidden; }
 .rich-text > button.link { margin-top: 0.2rem; }
 
 /* Profiles */
@@ -347,7 +348,19 @@ input[type="range"]:focus { outline-offset: 4px; }
 .profile-head .grow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .avatar { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; flex: none; background: var(--sage); border: 2px solid var(--gold-line); }
 .avatar-blank { display: grid; place-items: center; font-family: var(--serif); font-size: 1.9rem; font-weight: 600; color: var(--green); }
+.avatar-icon { display: block; overflow: hidden; padding: 0; background: none; }
+.avatar-icon svg { display: block; width: 100%; height: 100%; }
 .avatar-lg { width: 112px; height: 112px; font-size: 2.8rem; }
+.avatar-sm { width: 28px; height: 28px; font-size: 0.85rem; border-width: 1px; }
+.with-avatar { display: inline-flex; align-items: center; gap: 0.55rem; min-width: 0; }
+.progress-name.with-avatar { display: flex; }
+.progress-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.icon-grid { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.4rem; }
+.icon-choice { width: 46px; height: 46px; padding: 0; border: 2px solid transparent; border-radius: 50%; background: none; line-height: 0; }
+.icon-choice:hover { background: none; border-color: var(--sage-mid); }
+.icon-choice[aria-checked="true"] { border-color: var(--green); box-shadow: 0 0 0 2px var(--gold); }
+.icon-choice svg { width: 100%; height: 100%; }
+.icon-choice:focus-visible { outline: 3px solid var(--sage-mid); outline-offset: 2px; }
 .featured { display: flex; gap: 1rem; align-items: flex-start; }
 .featured .cover { width: 84px; height: 126px; }
 .featured h3 { margin: 0; }
@@ -365,3 +378,4 @@ input[type="range"]:focus { outline-offset: 4px; }
 .discussion-found .message { max-width: 100%; align-self: stretch; }
 .discussion-found .chat-list { max-height: none; }
 .message-where { margin: 0.25rem 0 0; }
+.icon-intro { margin: 0.8rem 0 0; }

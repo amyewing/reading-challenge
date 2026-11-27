@@ -2,11 +2,18 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { shrinkPhoto } from '../lib/avatar';
 import type { Book } from '../lib/types';
+import { AVATAR_PRESETS, PresetIcon } from '../lib/avatarPresets';
 import Avatar from './Avatar';
 import BookPicker, { bookPayload, isComplete, pickedFromBook, type PickedBook } from './BookPicker';
 
 interface Props {
-  person: { display_name: string; avatar: string | null; featured_book: Book | null; featured_note: string | null };
+  person: {
+    display_name: string;
+    avatar: string | null;
+    avatar_preset: string | null;
+    featured_book: Book | null;
+    featured_note: string | null;
+  };
   onClose: () => void;
   /** Called with the saved name, so the rest of the app can show it */
   onSaved: (displayName: string) => void;
@@ -16,6 +23,8 @@ interface Props {
 export default function EditProfileDialog({ person, onClose, onSaved }: Props) {
   const [name, setName] = useState(person.display_name);
   const [avatar, setAvatar] = useState<string | null>(person.avatar);
+  const [thumb, setThumb] = useState<string | null>(null); // the small copy used in lists, made when a new photo is chosen
+  const [preset, setPreset] = useState<string | null>(person.avatar_preset);
   const [avatarChanged, setAvatarChanged] = useState(false);
   const [picked, setPicked] = useState<PickedBook | null>(pickedFromBook(person.featured_book));
   const [choosing, setChoosing] = useState(false); // showing the book search
@@ -34,7 +43,10 @@ export default function EditProfileDialog({ person, onClose, onSaved }: Props) {
     if (!file) return;
     setError(null);
     try {
-      setAvatar(await shrinkPhoto(file));
+      const { full, thumb } = await shrinkPhoto(file);
+      setAvatar(full);
+      setThumb(thumb);
+      setPreset(null); // a photo replaces any icon
       setAvatarChanged(true);
     } catch (e: any) {
       setError(e.message);
@@ -55,7 +67,7 @@ export default function EditProfileDialog({ person, onClose, onSaved }: Props) {
         method: 'PUT',
         body: {
           displayName: name.trim(),
-          ...(avatarChanged ? { avatar } : {}),
+          ...(avatarChanged ? { avatar, avatarThumb: avatar ? thumb : null, avatarPreset: avatar ? null : preset } : {}),
           featuredBook: picked && hasBook ? bookPayload(picked) : null,
           featuredNote: picked && hasBook ? note.trim() || null : null,
         },
@@ -80,7 +92,7 @@ export default function EditProfileDialog({ person, onClose, onSaved }: Props) {
         <div>
           <span className="label-text">Profile picture</span>
           <div className="photo-edit">
-            <Avatar name={name || 'Reader'} src={avatar} large />
+            <Avatar name={name || 'Reader'} src={avatar} preset={preset} size="lg" />
             <div className="row">
               <input
                 ref={fileRef}
@@ -94,14 +106,16 @@ export default function EditProfileDialog({ person, onClose, onSaved }: Props) {
                 }}
               />
               <button type="button" onClick={() => fileRef.current?.click()}>
-                {avatar ? 'Change picture' : 'Choose a picture'}
+                {avatar ? 'Change photo' : 'Upload a photo'}
               </button>
-              {avatar && (
+              {(avatar || preset) && (
                 <button
                   type="button"
                   className="link danger"
                   onClick={() => {
                     setAvatar(null);
+                    setThumb(null);
+                    setPreset(null);
                     setAvatarChanged(true);
                   }}
                 >
@@ -109,6 +123,28 @@ export default function EditProfileDialog({ person, onClose, onSaved }: Props) {
                 </button>
               )}
             </div>
+          </div>
+          <p className="small muted icon-intro">Or pick an icon:</p>
+          <div className="icon-grid" role="radiogroup" aria-label="Profile icon">
+            {AVATAR_PRESETS.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                role="radio"
+                aria-checked={!avatar && preset === p.key}
+                aria-label={p.label}
+                title={p.label}
+                className="icon-choice"
+                onClick={() => {
+                  setPreset(p.key);
+                  setAvatar(null); // an icon replaces any photo
+                  setThumb(null);
+                  setAvatarChanged(true);
+                }}
+              >
+                <PresetIcon preset={p} />
+              </button>
+            ))}
           </div>
         </div>
 

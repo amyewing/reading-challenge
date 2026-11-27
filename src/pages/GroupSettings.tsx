@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 import { useMe } from '../App';
 import type { Challenge, Group, Member } from '../lib/types';
+import Avatar from '../components/Avatar';
 
 /** Group settings: details (owner and admins), members and roles, and deleting the group (owner). */
 export default function GroupSettings() {
@@ -170,10 +171,13 @@ export default function GroupSettings() {
         <ul className="member-list manage">
           {members.map((m) => (
             <li key={m.user_id}>
-              <span className="grow">
-                {m.profiles?.display_name ?? 'Reader'}
-                {m.user_id === me.id && ' (you)'}{' '}
-                {m.role !== 'member' && <span className="badge">{m.role}</span>}
+              <span className="grow with-avatar">
+                <Avatar size="sm" name={m.profiles?.display_name ?? 'Reader'} src={m.profiles?.avatar} preset={m.profiles?.avatar_preset} />
+                <span>
+                  {m.profiles?.display_name ?? 'Reader'}
+                  {m.user_id === me.id && ' (you)'}{' '}
+                  {m.role !== 'member' && <span className="badge">{m.role}</span>}
+                </span>
               </span>
               <span className="row member-actions">
                 {isOwner && m.role !== 'owner' && (

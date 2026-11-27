@@ -6289,27 +6289,37 @@ route("PUT", "/api/me", async ({ q, body }) => {
   const [me] = await q("select display_name from profiles where id = current_user_id()");
   return { ok: true, displayName: me?.display_name ?? null };
 });
-function avatarData(value) {
+function avatarData(value, maxLength = 8e4) {
   if (value === null || value === "") return null;
   if (typeof value !== "string" || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(value)) {
     throw badRequest("The picture must be a JPEG image.");
   }
-  if (value.length > 8e4) throw badRequest("That picture is too large.");
+  if (value.length > maxLength) throw badRequest("That picture is too large.");
+  return value;
+}
+function avatarPresetKey(value) {
+  if (value === null || value === "") return null;
+  if (typeof value !== "string" || !/^[a-z-]{1,30}$/.test(value)) throw badRequest("That icon is not valid.");
   return value;
 }
 route("PUT", "/api/me/profile", async ({ q, body }) => {
-  const [current] = await q("select display_name, avatar, featured_book_id, featured_note from profiles where id = current_user_id()");
+  const [current] = await q(
+    "select display_name, avatar, avatar_thumb, avatar_preset, featured_book_id, featured_note from profiles where id = current_user_id()"
+  );
   if (!current) throw notFound("Your profile was not found.");
   const displayName = body.displayName === void 0 ? current.display_name : text(body.displayName, "Name", { max: 80, required: true });
   const avatar = body.avatar === void 0 ? current.avatar : avatarData(body.avatar);
+  const avatarThumb = !avatar ? null : body.avatarThumb === void 0 ? current.avatar_thumb : avatarData(body.avatarThumb, 12e3);
+  const avatarPreset = avatar ? null : body.avatarPreset === void 0 ? current.avatar_preset : avatarPresetKey(body.avatarPreset);
   const featuredBook = body.featuredBook === void 0 ? current.featured_book_id : body.featuredBook === null ? null : await resolveBook(q, body.featuredBook);
   const note = body.featuredNote === void 0 ? current.featured_note : text(body.featuredNote, "Note", { max: 1e3 });
   await q(
     `update profiles
      set display_name_custom = display_name_custom or $1::text <> display_name,
-         display_name = $1, avatar = $2, featured_book_id = $3, featured_note = $4, updated_at = now()
+         display_name = $1, avatar = $2, featured_book_id = $3, featured_note = $4,
+         avatar_thumb = $5, avatar_preset = $6, updated_at = now()
      where id = current_user_id()`,
-    [displayName, avatar, featuredBook, featuredBook ? note : null]
+    [displayName, avatar, featuredBook, featuredBook ? note : null, avatarThumb, avatarPreset]
   );
   return { ok: true, displayName };
 });
@@ -6335,7 +6345,7 @@ route("GET", "/api/groups/:groupId", async ({ q, params }) => {
   if (!group) throw notFound("This group doesn't exist or you're not a member.");
   const members = await q(
     `select m.user_id, m.role, m.joined_at,
-            json_build_object('display_name', p.display_name, 'email', p.email) as profiles
+            json_build_object('display_name', p.display_name, 'email', p.email, 'avatar', coalesce(p.avatar_thumb, p.avatar), 'avatar_preset', p.avatar_preset) as profiles
      from group_members m join profiles p on p.id = m.user_id
      where m.group_id = $1
      order by m.joined_at`,
@@ -6575,7 +6585,7 @@ route("GET", "/api/challenges/:challengeId", async ({ q, params }) => {
   );
   const members = await q(
     `select m.user_id, m.role, m.joined_at,
-            json_build_object('display_name', p.display_name, 'email', p.email) as profiles
+            json_build_object('display_name', p.display_name, 'email', p.email, 'avatar', coalesce(p.avatar_thumb, p.avatar), 'avatar_preset', p.avatar_preset) as profiles
      from group_members m join profiles p on p.id = m.user_id
      where m.group_id = $1
      order by m.joined_at`,
@@ -6861,7 +6871,7 @@ route("DELETE", "/api/messages/:messageId", async ({ q, params }) => {
 });
 route("GET", "/api/people/:userId", async ({ q, params }) => {
   const [person] = await q(
-    `select p.id, p.display_name, p.avatar, p.featured_note,
+    `select p.id, p.display_name, p.avatar, p.avatar_preset, p.featured_note,
             case when b.id is null then null
                  else json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url) end as featured_book
      from profiles p left join books b on b.id = p.featured_book_id
@@ -7048,7 +7058,7 @@ async function handle(req) {
     if (!matched) return { status: pathExists ? 405 : 404, body: { error: pathExists ? "Method not allowed" : "Not found" } };
     let body = {};
     if (req.body) {
-      if (req.body.length > 1e5) throw badRequest("Request is too large.");
+      if (req.body.length > 15e4) throw badRequest("Request is too large.");
       try {
         body = JSON.parse(req.body);
       } catch {

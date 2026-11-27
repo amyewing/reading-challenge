@@ -10,7 +10,8 @@ export interface Member {
   user_id: string;
   role: Role;
   joined_at: string;
-  profiles: Pick<Profile, 'display_name' | 'email'> | null;
+  /** avatar: a small copy of their photo (or the full one); avatar_preset: their chosen built-in icon */
+  profiles: (Pick<Profile, 'display_name' | 'email'> & { avatar?: string | null; avatar_preset?: string | null }) | null;
 }
 
 export interface Group {

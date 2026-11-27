@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 import { useMe } from '../App';
+import Avatar from '../components/Avatar';
 import PersonLink from '../components/PersonLink';
 import type { Challenge, Group, Member } from '../lib/types';
 
@@ -95,7 +96,10 @@ export default function GroupPage() {
             <ul className="member-list">
               {members.map((m) => (
                 <li key={m.user_id}>
-                  <span><PersonLink id={m.user_id} name={m.profiles?.display_name} />{m.user_id === me.id && ' (you)'}</span>
+                  <span className="with-avatar">
+                    <Avatar size="sm" name={m.profiles?.display_name ?? 'Reader'} src={m.profiles?.avatar} preset={m.profiles?.avatar_preset} />
+                    <span><PersonLink id={m.user_id} name={m.profiles?.display_name} />{m.user_id === me.id && ' (you)'}</span>
+                  </span>
                   {m.role !== 'member' && <span className="badge">{m.role}</span>}
                 </li>
               ))}

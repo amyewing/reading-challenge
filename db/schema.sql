@@ -30,7 +30,9 @@ create table profiles (
   display_name_custom boolean not null default false,          -- true once they set their own name
   avatar        text check (avatar is null or (avatar like 'data:image/jpeg;base64,%' and length(avatar) <= 80000)),
   featured_book_id uuid,                                       -- references books(id), added after books
-  featured_note text check (featured_note is null or length(featured_note) <= 1000)
+  featured_note text check (featured_note is null or length(featured_note) <= 1000),
+  avatar_thumb  text check (avatar_thumb is null or (avatar_thumb like 'data:image/jpeg;base64,%' and length(avatar_thumb) <= 12000)),
+  avatar_preset text check (avatar_preset is null or avatar_preset ~ '^[a-z-]{1,30}$')   -- a built-in literary icon
 );
 
 create table groups (

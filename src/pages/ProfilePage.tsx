@@ -62,6 +62,7 @@ interface Profile {
     id: string;
     display_name: string;
     avatar: string | null;
+    avatar_preset: string | null;
     featured_book: Book | null;
     featured_note: string | null;
   };
@@ -142,7 +143,7 @@ export default function ProfilePage() {
     <>
       <p className="crumbs"><Link to="/">Groups</Link> /</p>
       <div className="profile-head">
-        <Avatar name={person.display_name} src={person.avatar} />
+        <Avatar name={person.display_name} src={person.avatar} preset={person.avatar_preset} />
         <div className="grow">
           <h1>{person.display_name}{isMe && ' (you)'}</h1>
           {isMe && <button onClick={() => setEditing(true)}>Edit profile</button>}
