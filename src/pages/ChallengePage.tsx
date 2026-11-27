@@ -8,6 +8,9 @@ import LogBookDialog from '../components/LogBookDialog';
 import ConsiderDialog from '../components/ConsiderDialog';
 import ReadingProgressDialog from '../components/ReadingProgressDialog';
 import PromptChat from '../components/PromptChat';
+import RichText from '../components/RichText';
+import MiniBar from '../components/MiniBar';
+import PersonLink from '../components/PersonLink';
 import BookTagsDialog from '../components/BookTagsDialog';
 import BookCover from '../components/BookCover';
 import TagChips from '../components/TagChips';
@@ -30,15 +33,6 @@ type Dialog =
   | { kind: 'reading'; prompt: Prompt; consideration: Consideration }
   | { kind: 'tags'; book: Book };
 
-/** A thin bar showing roughly how far through a book someone is */
-function MiniBar({ percent }: { percent: number | null }) {
-  const p = percent ?? 0;
-  return (
-    <span className="mini-bar" title={`About ${p}% read`}>
-      <span style={{ width: `${p}%` }} />
-    </span>
-  );
-}
 
 export default function ChallengePage() {
   const { challengeId } = useParams();
@@ -182,10 +176,10 @@ export default function ChallengePage() {
           <Link className="button" to={`/challenges/${challenge.id}/edit`}>Edit</Link>
         )}
       </div>
-      {challenge.description && <p className="muted">{challenge.description}</p>}
+      {challenge.description && <RichText text={challenge.description} className="muted" />}
       {members.some((m) => m.user_id === challenge.created_by) && (
         <p className="small muted organiser">
-          Organised by {members.find((m) => m.user_id === challenge.created_by)?.profiles?.display_name ?? 'Reader'}
+          Organised by <PersonLink id={challenge.created_by} name={members.find((m) => m.user_id === challenge.created_by)?.profiles?.display_name} />
           {challenge.created_by === me.id && ' (you)'}
         </p>
       )}
@@ -219,7 +213,7 @@ export default function ChallengePage() {
               const note = progressNote(p);
               return (
                 <li key={p.id}>
-                  <span className="progress-name">{p.name}{p.id === me.id && ' (you)'}</span>
+                  <span className="progress-name"><PersonLink id={p.id} name={p.name} />{p.id === me.id && ' (you)'}</span>
                   <span
                     className="bar"
                     title={`${p.count} read${p.reading ? `, ${p.reading} being read` : ''}${p.planned ? `, ${p.planned} more with books in mind` : ''}`}
@@ -309,7 +303,12 @@ export default function ChallengePage() {
                 )}
               </div>
               <h3>{prompt.title}</h3>
-              {prompt.description && <p className="small muted prompt-desc">{prompt.description}</p>}
+              {prompt.description && (
+                <div className="prompt-about">
+                  <p className="eyebrow">About this prompt</p>
+                  <RichText text={prompt.description} clamp className="small" />
+                </div>
+              )}
 
               {mine.length > 0 && (
                 <ul className="my-entries">
@@ -463,7 +462,7 @@ export default function ChallengePage() {
                                   <strong>{e.books?.title}</strong>
                                   {e.books?.author && <span className="muted"> — {e.books.author}</span>}
                                   <div className="small muted">
-                                    {e.profiles?.display_name}
+                                    <PersonLink id={e.user_id} name={e.profiles?.display_name} />
                                     {e.rating && ` · ${'★'.repeat(e.rating)}`}
                                   </div>
                                   {e.notes && <p className="small notes">{e.notes}</p>}
@@ -488,7 +487,7 @@ export default function ChallengePage() {
                                   {c.books?.author && <span className="muted"> — {c.books.author}</span>}
                                   <div className="reading-line small muted">
                                     <MiniBar percent={c.progress} />
-                                    <span>{c.profiles?.display_name} · about {c.progress ?? 0}%</span>
+                                    <span><PersonLink id={c.user_id} name={c.profiles?.display_name} /> · about {c.progress ?? 0}%</span>
                                   </div>
                                   {bookTags(c.books)}
                                   {discuss(prompt, c.books)}
@@ -509,7 +508,7 @@ export default function ChallengePage() {
                                 <div className="grow">
                                   <strong>{c.books?.title}</strong>
                                   {c.books?.author && <span className="muted"> — {c.books.author}</span>}
-                                  <div className="small muted">{c.profiles?.display_name}</div>
+                                  <div className="small muted"><PersonLink id={c.user_id} name={c.profiles?.display_name} /></div>
                                   {c.reason && <p className="small notes">{c.reason}</p>}
                                   {bookTags(c.books)}
                                   {discuss(prompt, c.books)}

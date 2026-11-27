@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { Link, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
 import { api, ApiError, freshTokenGetter, setTokenGetter } from './lib/api';
 import type { Me } from './lib/types';
@@ -11,6 +11,7 @@ import EditChallenge from './pages/EditChallenge';
 import InvitePage from './pages/InvitePage';
 import FindBooks from './pages/FindBooks';
 import GroupSettings from './pages/GroupSettings';
+import ProfilePage from './pages/ProfilePage';
 
 export const PENDING_INVITE_KEY = 'pendingInvite';
 
@@ -135,7 +136,10 @@ export default function App() {
         <Link to="/" className="brand">📚 Reading Challenge</Link>
         <div className="row">
           <Link to="/books" className="nav-link">Find books</Link>
-          <span className="muted small topbar-name">{me.name}</span>
+          <Link to="/me" className="nav-link profile-link" aria-label="My profile" title="My profile">
+            <span className="topbar-name">{me.name}</span>
+            <span className="profile-icon" aria-hidden="true">👤</span>
+          </Link>
           <button className="link" onClick={() => logout()}>Sign out</button>
         </div>
       </header>
@@ -149,6 +153,8 @@ export default function App() {
           <Route path="/challenges/:challengeId/edit" element={<EditChallenge />} />
           <Route path="/invite/:code" element={<InvitePage />} />
           <Route path="/books" element={<FindBooks />} />
+          <Route path="/people/:userId" element={<ProfilePage />} />
+          <Route path="/me" element={<Navigate to={`/people/${encodeURIComponent(me.id)}`} replace />} />
           <Route path="*" element={<p>Page not found. <Link to="/">Go home</Link></p>} />
         </Routes>
       </main>

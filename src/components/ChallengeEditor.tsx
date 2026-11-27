@@ -166,16 +166,17 @@ export default function ChallengeEditor({ initial, status, entryCounts = {}, can
               <div className="prompt-extra">
                 {logged > 0 && <span className="small muted">{logged} logged {logged === 1 ? 'book' : 'books'} · </span>}
                 {openDetails[p.key] ? (
-                  <input
+                  <textarea
                     className="prompt-details"
+                    rows={3}
                     value={p.description}
                     onChange={(e) => updatePrompt(p.key, { description: e.target.value })}
-                    placeholder="Details or examples (optional)"
-                    maxLength={1000}
+                    placeholder="About this prompt: what it means, why it was chosen, examples. Links become clickable."
+                    maxLength={5000}
                   />
                 ) : (
                   <button type="button" className="link small" onClick={() => setOpenDetails({ ...openDetails, [p.key]: true })}>
-                    + details
+                    + About this prompt
                   </button>
                 )}
               </div>

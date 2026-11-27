@@ -24,7 +24,7 @@ The database connection string is a secret that lives only on the server. The br
 - Owners and admins create invite links that last 14 days, and can revoke them
 - **Manage group** (owners and admins): edit the group's name and description and remove members. The owner can also make members admins (or not) and delete the group. Deleting asks you to type the group's name, and removes its challenges and everyone's logged books for them.
 - **Hand over** a group (the owner makes another member the owner and stays on as an admin) or a challenge (its organiser or a group admin picks a new organiser from the group, on the Edit challenge page)
-- Anyone in a group can create a challenge: a title, dates, and prompts (type them one by one or paste several at once). Prompts can have optional details.
+- Anyone in a group can create a challenge: a title, dates, and prompts (type them one by one or paste several at once). Each prompt can have an **About this prompt** note (up to 5,000 characters) to explain what a genre is, why the prompt was chosen, or give examples. Paragraphs are kept, web addresses become links, and long notes fold behind "Read more".
 - New challenges start as **drafts**, visible only to their creator and the group's admins. Edit them as often as you like (reword, reorder, add or remove prompts), then **launch** them for the group. Launched challenges can still be edited, but a prompt with logged books can't be removed.
 - **Consider** books while planning: add books you might read for a prompt, with why they'd fit. Everyone in the group sees each other's lists, and can add someone else's idea (or a book someone already read) to their own list with one click. When you log a book from your list, it comes off the list.
 - Log a book against a prompt: search Open Library (by anything, title only, or author only) or type it in, then add a finish date, a rating and notes. Several different books can count toward the same prompt.
@@ -33,6 +33,7 @@ The database connection string is a secret that lives only on the server. The br
 - **Start reading** a book (from your list or a new one) and say roughly how far through it you are (a rough percentage, updated whenever you like). Logging it as read finishes it. Everyone sees who is reading what, who has started a challenge, and who has not.
 - **Discuss** each prompt: one chat thread per prompt for how to interpret it and for thoughts on its books. A message can be about one of the books (each book shows its comment count), and can be marked as containing spoilers, which stay blurred until someone taps to show them. Prompts show how many messages are new to you. You edit and delete your own messages; a challenge's organiser and group admins can delete any.
 - See everyone's progress (books read, plus prompts they have a book in mind for), and what others read or are considering for each prompt. Hide the prompts you've finished to focus on what's left.
+- **Profiles**: your name in the top bar opens your profile with your groups, your challenges (with how far you are in each), and every book you have read, are reading or are considering. Click anyone's name to see theirs: you only see the groups and challenges you share with them, and never their email.
 - Leave a group. Challenge creators and admins can delete a challenge
 
 ---
@@ -102,10 +103,10 @@ db/schema.sql            tables, access rules, and database functions
 db/migrations/           changes applied to the existing database
 src/lib/api.ts           front-end API client (adds the Kinde token, refreshes it when needed)
 src/pages/               screens: Home, GroupPage, GroupSettings, NewChallenge, EditChallenge,
-                         ChallengePage, FindBooks, InvitePage
+                         ChallengePage, ProfilePage, FindBooks, InvitePage
 src/components/          BookPicker (Open Library search), LogBookDialog, ConsiderDialog,
                          ReadingProgressDialog, PromptChat, TagPicker, TagChips, BookTagsDialog,
-                         ChallengeEditor, BookCover
+                         ChallengeEditor, BookCover, RichText (notes with links), MiniBar, PersonLink
 ```
 
 ## Ideas for next steps

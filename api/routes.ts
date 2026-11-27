@@ -247,7 +247,7 @@ function challengeInput(body: any) {
     const title = text(item.title, `Prompt ${i + 1}`, { max: 300 });
     if (!title) return;
     const id = typeof item.id === 'string' && new RegExp(`^${UUID}$`).test(item.id) ? item.id : null;
-    prompts.push({ id, title, description: text(item.description, `Prompt ${i + 1} details`, { max: 1000 }) });
+    prompts.push({ id, title, description: text(item.description, `About prompt ${i + 1}`, { max: 5000 }) });
   });
   const startsOn = date(body.startsOn, 'Start date');
   const endsOn = date(body.endsOn, 'End date');
@@ -726,6 +726,70 @@ route('DELETE', '/api/messages/:messageId', async ({ q, params }) => {
   const rows = await q('delete from prompt_messages where id = $1 returning id', [params.messageId]);
   if (!rows.length) throw new HttpError(403, 'You can only delete your own messages (organisers and group admins can delete any).');
   return { ok: true };
+});
+
+// A person's profile: their groups, challenges, and the books they've read, are reading or are
+// considering. The database's access rules decide what you may see, so for someone else it's only
+// what you share with them (groups you're both in, and those challenges' books). Their email is
+// never included.
+
+route('GET', '/api/people/:userId', async ({ q, params }) => {
+  const [person] = await q('select id, display_name from profiles where id = $1', [params.userId]);
+  if (!person) throw notFound("This person doesn't exist, or you don't share a group with them.");
+
+  const groups = await q(
+    `select g.id, g.name, g.description, m.role,
+            (select count(*)::int from group_members x where x.group_id = g.id) as member_count
+     from groups g join group_members m on m.group_id = g.id and m.user_id = $1
+     order by g.created_at`,
+    [person.id],
+  );
+
+  // Challenges in those groups, with how far this person has got in each
+  const challenges = await q(
+    `select c.id, c.group_id, c.title, c.status, c.starts_on::text, c.ends_on::text, g.name as group_name,
+            (select count(*)::int from prompts p where p.challenge_id = c.id) as prompt_count,
+            (select count(distinct e.prompt_id)::int from entries e
+             where e.challenge_id = c.id and e.user_id = $1) as read_count,
+            (select count(distinct k.prompt_id)::int from considerations k
+             where k.challenge_id = c.id and k.user_id = $1 and k.status = 'reading'
+               and not exists (select 1 from entries e where e.prompt_id = k.prompt_id and e.user_id = $1)) as reading_count,
+            (select count(distinct k.prompt_id)::int from considerations k
+             where k.challenge_id = c.id and k.user_id = $1 and k.status = 'considering'
+               and not exists (select 1 from entries e where e.prompt_id = k.prompt_id and e.user_id = $1)) as considering_count
+     from challenges c join groups g on g.id = c.group_id
+     where c.group_id in (select group_id from group_members where user_id = $1)
+     order by (c.status = 'draft') desc, c.created_at desc`,
+    [person.id],
+  );
+
+  const entries = await q(
+    `select e.id, e.finished_on::text, e.rating, e.notes, e.created_at,
+            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url) as books,
+            pr.id as prompt_id, pr.title as prompt_title, c.id as challenge_id, c.title as challenge_title
+     from entries e
+     join books b on b.id = e.book_id
+     join prompts pr on pr.id = e.prompt_id
+     join challenges c on c.id = e.challenge_id
+     where e.user_id = $1
+     order by coalesce(e.finished_on, e.created_at::date) desc, e.created_at desc`,
+    [person.id],
+  );
+
+  const considerations = await q(
+    `select k.id, k.status, k.progress, k.started_on::text, k.reason, k.created_at,
+            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url) as books,
+            pr.id as prompt_id, pr.title as prompt_title, c.id as challenge_id, c.title as challenge_title
+     from considerations k
+     join books b on b.id = k.book_id
+     join prompts pr on pr.id = k.prompt_id
+     join challenges c on c.id = k.challenge_id
+     where k.user_id = $1
+     order by k.created_at desc`,
+    [person.id],
+  );
+
+  return { person, groups, challenges, entries, considerations };
 });
 
 // Tags. A suggested library (db/tags_seed.sql) plus tags people add. Each person tags books

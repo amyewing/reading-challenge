@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import type { Book, PromptMessage } from '../lib/types';
+import PersonLink from './PersonLink';
 
 interface Props {
   promptId: string;
@@ -145,7 +146,7 @@ export default function PromptChat({ promptId, books, initialBookId = null, myId
           return (
             <div key={m.id} className={`message ${mine ? 'mine' : ''}`}>
               <div className="message-head">
-                <strong>{m.profiles?.display_name ?? 'Reader'}{mine && ' (you)'}</strong>
+                <strong><PersonLink id={m.user_id} name={m.profiles?.display_name} />{mine && ' (you)'}</strong>
                 <span className="small muted">
                   {timeAgo(m.created_at)}
                   {m.edited_at && ' · edited'}

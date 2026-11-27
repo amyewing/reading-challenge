@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import type { Book, Consideration, Prompt } from '../lib/types';
 import BookPicker, { bookPayload, isComplete, pickedFromBook, type PickedBook } from './BookPicker';
 import DialogTags, { saveDialogTags } from './DialogTags';
+import RichText from './RichText';
 import { useMyBookTags } from '../lib/useMyBookTags';
 
 interface Props {
@@ -71,7 +72,7 @@ export default function ConsiderDialog({ prompt, existing, initialBook, reading 
           {existing ? 'A book you’re considering for' : reading ? 'Start reading a book for' : 'Consider a book for'}
         </p>
         <h2>{prompt.title}</h2>
-        {prompt.description && <p className="small muted">{prompt.description}</p>}
+        {prompt.description && <RichText text={prompt.description} clamp className="small muted" />}
 
         <BookPicker value={picked} onChange={setPicked} label="Which book?" />
 
