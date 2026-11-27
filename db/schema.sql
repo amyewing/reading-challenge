@@ -329,6 +329,39 @@ begin
 end;
 $$;
 
+-- Hand a group to another member: they become owner, the old owner an admin
+create or replace function transfer_group(p_group_id uuid, p_new_owner text)
+returns void language plpgsql security definer set search_path = public as $$
+declare uid text := current_user_id();
+begin
+  if uid is null then raise exception 'Not signed in'; end if;
+  if not is_group_owner(p_group_id) then raise exception 'Only the group''s owner can hand it over'; end if;
+  if p_new_owner = uid then raise exception 'You already own this group'; end if;
+  if not exists (select 1 from group_members where group_id = p_group_id and user_id = p_new_owner) then
+    raise exception 'The new owner must be a member of the group';
+  end if;
+  update group_members set role = 'admin' where group_id = p_group_id and user_id = uid;
+  update group_members set role = 'owner' where group_id = p_group_id and user_id = p_new_owner;
+end;
+$$;
+
+-- Hand a challenge to another group member (its organiser, challenges.created_by)
+create or replace function transfer_challenge(p_challenge_id uuid, p_new_owner text)
+returns void language plpgsql security definer set search_path = public as $$
+declare gid uuid;
+begin
+  if current_user_id() is null then raise exception 'Not signed in'; end if;
+  if not can_manage_challenge(p_challenge_id) then
+    raise exception 'Only the challenge''s organiser or a group admin can hand it over';
+  end if;
+  select group_id into gid from challenges where id = p_challenge_id;
+  if not exists (select 1 from group_members where group_id = gid and user_id = p_new_owner) then
+    raise exception 'The new organiser must be a member of the group';
+  end if;
+  update challenges set created_by = p_new_owner where id = p_challenge_id;
+end;
+$$;
+
 -- ---------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------

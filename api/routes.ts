@@ -57,7 +57,9 @@ function route(method: string, path: string, handler: Handler) {
     '^' +
       path.replace(/:(\w+)/g, (_, key) => {
         keys.push(key);
-        return key === 'code' ? '([A-Za-z0-9_-]{1,64})' : UUID;
+        if (key === 'code') return '([A-Za-z0-9_-]{1,64})';
+        if (key === 'userId') return '([A-Za-z0-9_|:.-]{1,128})'; // Kinde user ids, e.g. kp_1a2b...
+        return UUID;
       }) +
       '$',
   );
@@ -111,6 +113,60 @@ route('GET', '/api/groups/:groupId', async ({ q, params }) => {
     [params.groupId],
   );
   return { group, members, challenges };
+});
+
+// Managing a group. Owners and admins edit its name and description; the owner makes
+// members admins (or not) and removes anyone; admins remove regular members; only the
+// owner can delete the group. The database rules enforce the same.
+
+route('PUT', '/api/groups/:groupId', async ({ q, params, body }) => {
+  const rows = await q('update groups set name = $2, description = $3 where id = $1 returning id', [
+    params.groupId,
+    text(body.name, 'Group name', { max: 100, required: true }),
+    text(body.description, 'Description', { max: 500 }),
+  ]);
+  if (!rows.length) throw new HttpError(403, "Only the group's owner and admins can change its details.");
+  return { ok: true };
+});
+
+route('DELETE', '/api/groups/:groupId', async ({ q, params }) => {
+  // Deletes its members list, invites and challenges too (with everyone's logged books and
+  // considering lists for them). Books stay in the shared catalog.
+  const rows = await q('delete from groups where id = $1 returning id', [params.groupId]);
+  if (!rows.length) throw new HttpError(403, "Only the group's owner can delete it.");
+  return { ok: true };
+});
+
+route('PUT', '/api/groups/:groupId/members/:userId', async ({ q, params, body }) => {
+  if (body.role !== 'admin' && body.role !== 'member') throw badRequest('Role must be admin or member.');
+  const rows = await q(
+    `update group_members set role = $3
+     where group_id = $1 and user_id = $2 and role <> 'owner' and user_id <> current_user_id()
+     returning user_id`,
+    [params.groupId, params.userId, body.role],
+  );
+  if (!rows.length) throw new HttpError(403, "Only the group's owner can change who's an admin.");
+  return { ok: true };
+});
+
+route('DELETE', '/api/groups/:groupId/members/:userId', async ({ q, params }) => {
+  const rows = await q(
+    `delete from group_members
+     where group_id = $1 and user_id = $2 and role <> 'owner' and user_id <> current_user_id()
+     returning user_id`,
+    [params.groupId, params.userId],
+  );
+  if (!rows.length) {
+    throw new HttpError(403, "You can't remove this person. The owner can remove anyone; admins can remove members.");
+  }
+  return { ok: true };
+});
+
+/** Hand the group to another member. They become the owner; you become an admin. */
+route('POST', '/api/groups/:groupId/transfer', async ({ q, params, body }) => {
+  const newOwner = text(body.userId, 'New owner', { max: 128, required: true });
+  await q('select transfer_group($1, $2)', [params.groupId, newOwner]);
+  return { ok: true };
 });
 
 route('DELETE', '/api/groups/:groupId/membership', async ({ q, params }) => {
@@ -338,6 +394,13 @@ route('GET', '/api/challenges/:challengeId', async ({ q, params }) => {
     [params.challengeId],
   );
   return { challenge, prompts, entries, considerations, members, bookTags };
+});
+
+/** Hand the challenge to another group member, who becomes its organiser. */
+route('POST', '/api/challenges/:challengeId/transfer', async ({ q, params, body }) => {
+  const newOwner = text(body.userId, 'New organiser', { max: 128, required: true });
+  await q('select transfer_challenge($1, $2)', [params.challengeId, newOwner]);
+  return { ok: true };
 });
 
 route('DELETE', '/api/challenges/:challengeId', async ({ q, params }) => {

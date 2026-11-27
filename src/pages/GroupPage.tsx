@@ -53,7 +53,10 @@ export default function GroupPage() {
   return (
     <>
       <p className="crumbs"><Link to="/">Groups</Link> /</p>
-      <h1>{group.name}</h1>
+      <div className="section-head title-head">
+        <h1>{group.name}</h1>
+        {isAdmin && <Link className="button" to={`/groups/${groupId}/settings`}>Manage group</Link>}
+      </div>
       {group.description && <p className="muted">{group.description}</p>}
 
       <div className="two-col">

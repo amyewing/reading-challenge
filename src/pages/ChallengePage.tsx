@@ -121,6 +121,12 @@ export default function ChallengePage() {
         )}
       </div>
       {challenge.description && <p className="muted">{challenge.description}</p>}
+      {members.some((m) => m.user_id === challenge.created_by) && (
+        <p className="small muted organiser">
+          Organised by {members.find((m) => m.user_id === challenge.created_by)?.profiles?.display_name ?? 'Reader'}
+          {challenge.created_by === me.id && ' (you)'}
+        </p>
+      )}
 
       {isDraft && (
         <section className="card draft-banner">

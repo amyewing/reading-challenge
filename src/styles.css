@@ -109,6 +109,11 @@ code { background: var(--sage); padding: 0 4px; border-radius: 4px; }
 label { display: block; font-weight: 500; font-size: 0.95rem; }
 label > input, label > textarea { display: block; margin-top: 0.35rem; }
 .card > h2:first-child, .card > .strip + h2 { margin-top: 0; }
+select {
+  font: inherit; padding: 0.55rem 0.8rem; border: 1px solid #dccfb4; border-radius: 10px;
+  background: #fff; color: var(--ink); min-width: 220px;
+}
+.hand-over { margin-top: 2rem; }
 input, textarea {
   font: inherit; padding: 0.6rem 0.8rem; border: 1px solid #dccfb4; border-radius: 10px;
   background: #fff; color: var(--ink); width: 100%;
@@ -139,6 +144,11 @@ button.icon { padding: 0.3rem 0.6rem; }
 /* Group page */
 .member-list { list-style: none; padding: 0; margin: 0 0 1rem; }
 .member-list li { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--line); }
+.member-list.manage li { gap: 0.75rem; padding: 0.65rem 0; }
+.member-actions { gap: 0.75rem; flex-wrap: nowrap; }
+.member-actions button.small { font-size: 0.85rem; padding: 0.3rem 0.75rem; }
+.danger-button { background: var(--danger); border-color: var(--danger); color: #fff; }
+.danger-button:hover { background: #8f2a23; }
 .invites { border-top: 1px solid var(--line); padding-top: 0.9rem; margin-bottom: 0.9rem; }
 .invites h3 { margin-bottom: 0.2rem; }
 .invite-row { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.5rem; }

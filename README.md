@@ -22,6 +22,8 @@ The database connection string is a secret that lives only on the server. The br
 - Sign up or sign in with Google, Facebook, or an email code (Kinde)
 - Create groups (you become the **owner**)
 - Owners and admins create invite links that last 14 days, and can revoke them
+- **Manage group** (owners and admins): edit the group's name and description and remove members. The owner can also make members admins (or not) and delete the group. Deleting asks you to type the group's name, and removes its challenges and everyone's logged books for them.
+- **Hand over** a group (the owner makes another member the owner and stays on as an admin) or a challenge (its organiser or a group admin picks a new organiser from the group, on the Edit challenge page)
 - Anyone in a group can create a challenge: a title, dates, and prompts (type them one by one or paste several at once). Prompts can have optional details.
 - New challenges start as **drafts**, visible only to their creator and the group's admins. Edit them as often as you like (reword, reorder, add or remove prompts), then **launch** them for the group. Launched challenges can still be edited, but a prompt with logged books can't be removed.
 - **Consider** books while planning: add books you might read for a prompt, with why they'd fit. Everyone in the group sees each other's lists, and can add someone else's idea (or a book someone already read) to their own list with one click. When you log a book from your list, it comes off the list.
@@ -66,7 +68,7 @@ Check everything compiles with `npm run typecheck`.
 
 ### Neon (database)
 1. Create a project.
-2. On a new database, run [db/schema.sql](db/schema.sql) and then [db/tags_seed.sql](db/tags_seed.sql) in the SQL Editor. The existing database was created with an earlier version and has been brought up to date with the files in [db/migrations/](db/migrations/), in order (002 to 006, then the tag seed). Read each file's header first: 005 must be applied only after the API that goes with it is deployed. The tag seed can be re-run at any time to add new suggested tags.
+2. On a new database, run [db/schema.sql](db/schema.sql) and then [db/tags_seed.sql](db/tags_seed.sql) in the SQL Editor. The existing database was created with an earlier version and has been brought up to date with the files in [db/migrations/](db/migrations/), in order (002 to 007, with the tag seed after 006). Read each file's header first: 005 must be applied only after the API that goes with it is deployed. The tag seed can be re-run at any time to add new suggested tags.
 3. For `DATABASE_URL`, use **Connect**, role `neondb_owner`, with **Connection pooling** on.
 4. The Neon **Data API** is not used and should stay disabled.
 
@@ -97,15 +99,14 @@ functions/               DigitalOcean Functions project (project.yml + bundled a
 db/schema.sql            tables, access rules, and database functions
 db/migrations/           changes applied to the existing database
 src/lib/api.ts           front-end API client (adds the Kinde token, refreshes it when needed)
-src/pages/               screens: Home, GroupPage, NewChallenge, EditChallenge, ChallengePage,
-                         FindBooks, InvitePage
+src/pages/               screens: Home, GroupPage, GroupSettings, NewChallenge, EditChallenge,
+                         ChallengePage, FindBooks, InvitePage
 src/components/          BookPicker (Open Library search), LogBookDialog, ConsiderDialog,
                          TagPicker, TagChips, BookTagsDialog, ChallengeEditor, BookCover
 ```
 
 ## Ideas for next steps
 
-- Promote members to admin from the members list
 - Import past years from Google Sheets
 - Longer reviews, and suggesting books for a prompt from their tags
 - Email reminders (a scheduled Function, like the board game app's)
