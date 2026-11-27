@@ -69,6 +69,28 @@ export interface Consideration {
   profiles: Pick<Profile, 'display_name'> | null;
 }
 
+export type TagCategory = 'genre' | 'mood' | 'pace' | 'story' | 'theme' | 'format' | 'content' | 'custom';
+
+/** A tag in the library */
+export interface Tag {
+  id: string;
+  name: string;
+  category: TagCategory;
+  suggested: boolean;
+  /** Order within the suggested library (null for tags people added) */
+  position: number | null;
+  book_count: number;
+}
+
+/** A tag on one book: how many people chose it, and whether you did */
+export interface BookTag {
+  id: string;
+  name: string;
+  category: TagCategory;
+  count: number;
+  mine: boolean;
+}
+
 export interface Me {
   id: string;
   name: string;

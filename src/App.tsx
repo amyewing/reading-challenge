@@ -9,6 +9,7 @@ import NewChallenge from './pages/NewChallenge';
 import ChallengePage from './pages/ChallengePage';
 import EditChallenge from './pages/EditChallenge';
 import InvitePage from './pages/InvitePage';
+import FindBooks from './pages/FindBooks';
 
 export const PENDING_INVITE_KEY = 'pendingInvite';
 
@@ -132,6 +133,7 @@ export default function App() {
       <header className="topbar">
         <Link to="/" className="brand">📚 Reading Challenge</Link>
         <div className="row">
+          <Link to="/books" className="nav-link">Find books</Link>
           <span className="muted small">{me.name}</span>
           <button className="link" onClick={() => logout()}>Sign out</button>
         </div>
@@ -144,6 +146,7 @@ export default function App() {
           <Route path="/challenges/:challengeId" element={<ChallengePage />} />
           <Route path="/challenges/:challengeId/edit" element={<EditChallenge />} />
           <Route path="/invite/:code" element={<InvitePage />} />
+          <Route path="/books" element={<FindBooks />} />
           <Route path="*" element={<p>Page not found. <Link to="/">Go home</Link></p>} />
         </Routes>
       </main>

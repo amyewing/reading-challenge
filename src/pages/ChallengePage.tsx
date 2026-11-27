@@ -3,14 +3,17 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 import { useMe } from '../App';
-import type { Book, Challenge, Consideration, Entry, Member, Prompt } from '../lib/types';
+import type { Book, BookTag, Challenge, Consideration, Entry, Member, Prompt } from '../lib/types';
 import LogBookDialog from '../components/LogBookDialog';
 import ConsiderDialog from '../components/ConsiderDialog';
+import BookTagsDialog from '../components/BookTagsDialog';
 import BookCover from '../components/BookCover';
+import TagChips from '../components/TagChips';
 
 type Dialog =
   | { kind: 'log'; prompt: Prompt; entry: Entry | null; book?: Book | null }
-  | { kind: 'consider'; prompt: Prompt; consideration: Consideration | null; book?: Book | null };
+  | { kind: 'consider'; prompt: Prompt; consideration: Consideration | null; book?: Book | null }
+  | { kind: 'tags'; book: Book };
 
 export default function ChallengePage() {
   const { challengeId } = useParams();
@@ -28,6 +31,7 @@ export default function ChallengePage() {
         entries: Entry[];
         considerations: Consideration[];
         members: Member[];
+        bookTags: (BookTag & { book_id: string })[];
       }>(`/api/challenges/${challengeId}`),
     [challengeId],
   );
@@ -42,6 +46,11 @@ export default function ChallengePage() {
 
   const { challenge, prompts, entries, members } = data.data;
   const considerations = data.data.considerations ?? [];
+  // Tags by book (already sorted most-chosen first)
+  const tagsByBook = new Map<string, BookTag[]>();
+  for (const t of data.data.bookTags ?? []) tagsByBook.set(t.book_id, [...(tagsByBook.get(t.book_id) ?? []), t]);
+  const bookTags = (book: Book | null) =>
+    book && <TagChips tags={tagsByBook.get(book.id) ?? []} max={4} onEdit={() => setDialog({ kind: 'tags', book })} />;
   const canManage = !!challenge.can_manage;
   const isDraft = challenge.status === 'draft';
   // Your logged books, by prompt (several books can count toward one prompt)
@@ -210,6 +219,7 @@ export default function ChallengePage() {
                           )}
                         </div>
                         {entry.notes && <p className="small notes">{entry.notes}</p>}
+                        {bookTags(entry.books)}
                       </div>
                       <button className="link" onClick={() => setDialog({ kind: 'log', prompt, entry })}>Edit</button>
                     </li>
@@ -228,6 +238,7 @@ export default function ChallengePage() {
                           <strong>{c.books?.title}</strong>
                           {c.books?.author && <span className="muted"> — {c.books.author}</span>}
                           {c.reason && <p className="small notes">{c.reason}</p>}
+                          {bookTags(c.books)}
                         </div>
                         <div className="row idea-actions">
                           {!isDraft && (
@@ -293,6 +304,7 @@ export default function ChallengePage() {
                                     {e.rating && ` · ${'★'.repeat(e.rating)}`}
                                   </div>
                                   {e.notes && <p className="small notes">{e.notes}</p>}
+                                  {bookTags(e.books)}
                                 </div>
                                 {addToMyList(e.books)}
                               </li>
@@ -312,6 +324,7 @@ export default function ChallengePage() {
                                   {c.books?.author && <span className="muted"> — {c.books.author}</span>}
                                   <div className="small muted">{c.profiles?.display_name}</div>
                                   {c.reason && <p className="small notes">{c.reason}</p>}
+                                  {bookTags(c.books)}
                                 </div>
                                 {addToMyList(c.books)}
                               </li>
@@ -337,6 +350,16 @@ export default function ChallengePage() {
           prompt={dialog.prompt}
           existing={dialog.entry}
           initialBook={dialog.book}
+          onClose={() => setDialog(null)}
+          onSaved={() => {
+            setDialog(null);
+            data.reload();
+          }}
+        />
+      )}
+      {dialog?.kind === 'tags' && (
+        <BookTagsDialog
+          book={dialog.book}
           onClose={() => setDialog(null)}
           onSaved={() => {
             setDialog(null);

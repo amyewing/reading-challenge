@@ -150,6 +150,36 @@ h1 .badge, h3 .badge { vertical-align: middle; font-family: 'Inter', system-ui, 
 .cover-sm { width: 36px; height: 54px; }
 .cover-blank { display: grid; place-items: center; font-family: 'Fraunces', serif; color: var(--muted); font-size: 1.2rem; }
 
+/* Tags */
+.tag-row { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.tag-chip {
+  display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; font-weight: 500;
+  padding: 0.2rem 0.6rem; border-radius: 99px; border: 1px solid var(--line); background: #fff;
+  color: var(--ink); text-decoration: none; line-height: 1.4; cursor: pointer;
+}
+.tag-chip:hover { border-color: var(--accent); }
+.tag-chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.tag-chip.add { border-style: dashed; color: var(--accent); }
+.tag-chip.small { font-size: 0.75rem; padding: 0.1rem 0.5rem; background: var(--paper); }
+.tag-chip.small.mine { border-color: #d9b8ae; }
+.tag-chip.small.on { background: var(--accent); color: var(--accent-ink); }
+.tag-count { font-size: 0.7rem; opacity: 0.7; }
+.tag-display { margin-top: 0.35rem; }
+.tag-picker { display: flex; flex-direction: column; gap: 0.6rem; }
+.tag-group { display: flex; flex-direction: column; gap: 0.3rem; }
+.tag-group-label, .label-text { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.label-text { font-size: 0.9rem; color: var(--ink); font-weight: 500; }
+.dialog-tags { display: flex; flex-direction: column; gap: 0.5rem; border-top: 1px solid var(--line); padding-top: 0.75rem; }
+
+/* Find books */
+.nav-link { font-size: 0.9rem; font-weight: 500; text-decoration: none; }
+.find-filters { display: flex; flex-direction: column; gap: 0.75rem; }
+.find-tags-head { margin-top: 0; }
+.book-results { list-style: none; padding: 0; margin: 0; }
+.book-result { display: flex; gap: 0.9rem; align-items: flex-start; }
+.author-link { display: block; text-decoration: none; color: var(--muted); }
+.activity { list-style: none; padding: 0; margin: 0.5rem 0 0; display: flex; flex-direction: column; gap: 0.2rem; }
+
 /* Dialog */
 .overlay { position: fixed; inset: 0; background: rgba(42, 36, 32, 0.45); display: grid; place-items: center; padding: 1rem; z-index: 10; }
 .dialog {

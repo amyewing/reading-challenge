@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import type { Book, Consideration, Prompt } from '../lib/types';
 import BookPicker, { bookPayload, isComplete, pickedFromBook, type PickedBook } from './BookPicker';
+import DialogTags, { saveDialogTags } from './DialogTags';
+import { useMyBookTags } from '../lib/useMyBookTags';
 
 interface Props {
   prompt: Prompt;
@@ -19,6 +21,7 @@ export default function ConsiderDialog({ prompt, existing, initialBook, onClose,
   const [reason, setReason] = useState(existing?.reason ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const myTags = useMyBookTags(picked?.kind === 'existing' ? picked.book.id : null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -33,8 +36,10 @@ export default function ConsiderDialog({ prompt, existing, initialBook, onClose,
     setError(null);
     try {
       const body = { book: bookPayload(picked), reason: reason.trim() || null };
-      if (existing) await api(`/api/considerations/${existing.id}`, { method: 'PUT', body });
-      else await api(`/api/prompts/${prompt.id}/considerations`, { method: 'POST', body });
+      const saved = existing
+        ? await api<{ bookId: string }>(`/api/considerations/${existing.id}`, { method: 'PUT', body })
+        : await api<{ bookId: string }>(`/api/prompts/${prompt.id}/considerations`, { method: 'POST', body });
+      await saveDialogTags(myTags, saved?.bookId);
       onSaved();
     } catch (err: any) {
       setError(err.message);
@@ -72,6 +77,7 @@ export default function ConsiderDialog({ prompt, existing, initialBook, onClose,
             />
           </label>
         )}
+        {picked && <DialogTags myTags={myTags} />}
 
         {error && <p className="error">{error}</p>}
         <div className="row dialog-actions">

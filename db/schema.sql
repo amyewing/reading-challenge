@@ -1,7 +1,8 @@
 -- =====================================================================
 -- Reading Challenge — database schema (Postgres on Neon)
 --
--- Run this once in the Neon SQL Editor on an empty database.
+-- Run this once in the Neon SQL Editor on an empty database, then run
+-- db/tags_seed.sql to load the suggested tags.
 --
 -- Only our API (api/) talks to the database. It checks the Kinde sign-in
 -- token, then runs each request inside a transaction as the restricted
@@ -125,6 +126,30 @@ create table considerations (
   unique (prompt_id, user_id, book_id)
 );
 create index considerations_challenge_idx on considerations (challenge_id);
+
+-- Tag library: suggested tags (see db/tags_seed.sql) plus tags people add
+create table tags (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null check (length(trim(name)) between 1 and 40),
+  slug        text not null unique,                          -- lower-case name, stops near-duplicates
+  category    text not null default 'custom'
+              check (category in ('genre', 'mood', 'pace', 'story', 'theme', 'format', 'content', 'custom')),
+  suggested   boolean not null default false,
+  position    int,                                           -- order within the suggested library
+  created_by  text default current_user_id() references profiles(id) on delete set null,
+  created_at  timestamptz not null default now()
+);
+
+-- One person putting one tag on one book
+create table book_tags (
+  book_id     uuid not null references books(id) on delete cascade,
+  tag_id      uuid not null references tags(id) on delete cascade,
+  user_id     text not null default current_user_id() references profiles(id) on delete cascade,
+  created_at  timestamptz not null default now(),
+  primary key (book_id, tag_id, user_id)
+);
+create index book_tags_tag_idx on book_tags (tag_id);
+create index book_tags_user_idx on book_tags (user_id);
 
 -- ---------------------------------------------------------------------
 -- Helper functions (SECURITY DEFINER so policies don't recurse)
@@ -317,6 +342,8 @@ alter table prompts       enable row level security;
 alter table books         enable row level security;
 alter table entries       enable row level security;
 alter table considerations enable row level security;
+alter table tags          enable row level security;
+alter table book_tags     enable row level security;
 
 -- profiles: see yourself and people you share a group with; edit yourself
 create policy profiles_select on profiles for select
@@ -401,6 +428,15 @@ create policy considerations_update on considerations for update
     and exists (select 1 from prompts p where p.id = prompt_id and p.challenge_id = considerations.challenge_id)
   );
 create policy considerations_delete on considerations for delete using (user_id = (select current_user_id()));
+
+-- tags / book_tags: any signed-in person sees the library and how books are tagged;
+-- people add their own (never "suggested") tags and tag books only as themselves
+create policy tags_select on tags for select using ((select current_user_id()) is not null);
+create policy tags_insert on tags for insert
+  with check (created_by = (select current_user_id()) and suggested = false and category = 'custom');
+create policy book_tags_select on book_tags for select using ((select current_user_id()) is not null);
+create policy book_tags_insert on book_tags for insert with check (user_id = (select current_user_id()));
+create policy book_tags_delete on book_tags for delete using (user_id = (select current_user_id()));
 
 -- ---------------------------------------------------------------------
 -- The API's restricted role

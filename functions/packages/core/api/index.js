@@ -6501,7 +6501,17 @@ route("GET", "/api/challenges/:challengeId", async ({ q, params }) => {
      order by m.joined_at`,
     [challenge.group_id]
   );
-  return { challenge, prompts, entries, considerations, members };
+  const bookTags = await q(
+    `select bt.book_id, t.id, t.name, t.category, count(*)::int as count,
+            bool_or(bt.user_id = current_user_id()) as mine
+     from book_tags bt join tags t on t.id = bt.tag_id
+     where bt.book_id in (select book_id from entries where challenge_id = $1
+                          union select book_id from considerations where challenge_id = $1)
+     group by bt.book_id, t.id
+     order by count(*) desc, t.name`,
+    [params.challengeId]
+  );
+  return { challenge, prompts, entries, considerations, members, bookTags };
 });
 route("DELETE", "/api/challenges/:challengeId", async ({ q, params }) => {
   const rows = await q("delete from challenges where id = $1 returning group_id", [params.challengeId]);
@@ -6576,7 +6586,7 @@ route("POST", "/api/prompts/:promptId/entries", async ({ q, params, body }) => {
     [prompt.challenge_id, params.promptId, bookId, details.finishedOn, details.rating, details.notes]
   );
   await graduateConsideration(q, params.promptId, bookId);
-  return { id: entry.id };
+  return { id: entry.id, bookId };
 });
 route("PUT", "/api/entries/:entryId", async ({ q, params, body }) => {
   const [entry] = await q(
@@ -6595,7 +6605,7 @@ route("PUT", "/api/entries/:entryId", async ({ q, params, body }) => {
     [entry.id, bookId, details.finishedOn, details.rating, details.notes]
   );
   await graduateConsideration(q, entry.prompt_id, bookId);
-  return { id: entry.id };
+  return { id: entry.id, bookId };
 });
 route("DELETE", "/api/entries/:entryId", async ({ q, params }) => {
   await q("delete from entries where id = $1 and user_id = current_user_id()", [params.entryId]);
@@ -6621,7 +6631,7 @@ route("POST", "/api/prompts/:promptId/considerations", async ({ q, params, body 
      returning id`,
     [prompt.challenge_id, params.promptId, bookId, reason]
   );
-  return { id: row.id };
+  return { id: row.id, bookId };
 });
 route("PUT", "/api/considerations/:considerationId", async ({ q, params, body }) => {
   const [existing] = await q("select id, prompt_id from considerations where id = $1 and user_id = current_user_id()", [
@@ -6640,11 +6650,112 @@ route("PUT", "/api/considerations/:considerationId", async ({ q, params, body })
     bookId,
     reason
   ]);
-  return { id: existing.id };
+  return { id: existing.id, bookId };
 });
 route("DELETE", "/api/considerations/:considerationId", async ({ q, params }) => {
   await q("delete from considerations where id = $1 and user_id = current_user_id()", [params.considerationId]);
   return { ok: true };
+});
+var MAX_TAGS_PER_BOOK = 30;
+route(
+  "GET",
+  "/api/tags",
+  async ({ q }) => q(`
+    select t.id, t.name, t.category, t.suggested, t.position,
+           (select count(distinct bt.book_id)::int from book_tags bt where bt.tag_id = t.id) as book_count
+    from tags t
+    order by t.name`)
+);
+route("POST", "/api/tags", async ({ q, body }) => {
+  const name = text(body.name, "Tag", { max: 40, required: true }).replace(/\s+/g, " ");
+  const slug = name.toLowerCase();
+  await q(
+    `insert into tags (name, slug, category, suggested, created_by)
+     values ($1, $2, 'custom', false, current_user_id())
+     on conflict (slug) do nothing`,
+    [name, slug]
+  );
+  const [tag2] = await q("select id, name, category, suggested, position from tags where slug = $1", [slug]);
+  return { ...tag2, book_count: 0 };
+});
+async function bookTagSummary(q, bookId) {
+  return q(
+    `select t.id, t.name, t.category, count(*)::int as count, bool_or(bt.user_id = current_user_id()) as mine
+     from book_tags bt join tags t on t.id = bt.tag_id
+     where bt.book_id = $1
+     group by t.id
+     order by count(*) desc, t.name`,
+    [bookId]
+  );
+}
+route("GET", "/api/books/:bookId/tags", async ({ q, params }) => bookTagSummary(q, params.bookId));
+route("PUT", "/api/books/:bookId/my-tags", async ({ q, params, body }) => {
+  const raw = Array.isArray(body.tagIds) ? body.tagIds : null;
+  if (!raw) throw badRequest("tagIds must be a list.");
+  if (!raw.every((id) => typeof id === "string" && new RegExp(`^${UUID}$`).test(id))) {
+    throw badRequest("One of the tags is not valid.");
+  }
+  const tagIds = [...new Set(raw)];
+  if (tagIds.length > MAX_TAGS_PER_BOOK) throw badRequest(`You can put up to ${MAX_TAGS_PER_BOOK} tags on a book.`);
+  const [book] = await q("select id from books where id = $1", [params.bookId]);
+  if (!book) throw notFound("That book was not found.");
+  await q("delete from book_tags where book_id = $1 and user_id = current_user_id() and not (tag_id = any($2::uuid[]))", [
+    book.id,
+    tagIds
+  ]);
+  await q(
+    `insert into book_tags (book_id, tag_id, user_id)
+     select $1, t.id, current_user_id() from tags t where t.id = any($2::uuid[])
+     on conflict do nothing`,
+    [book.id, tagIds]
+  );
+  return bookTagSummary(q, book.id);
+});
+route("POST", "/api/books/search", async ({ q, body }) => {
+  const tagIds = Array.isArray(body.tagIds) ? body.tagIds.filter((id) => typeof id === "string" && new RegExp(`^${UUID}$`).test(id)).slice(0, 20) : [];
+  const words = text(body.q, "Search", { max: 200 });
+  const like = words ? `%${words.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
+  return q(
+    `select b.id, b.title, b.author, b.cover_url,
+            coalesce((select json_agg(x order by x.count desc, x.name) from (
+                select t.id, t.name, t.category, count(*)::int as count, bool_or(bt.user_id = current_user_id()) as mine
+                from book_tags bt join tags t on t.id = bt.tag_id
+                where bt.book_id = b.id group by t.id) x), '[]') as tags,
+            coalesce((select json_agg(r order by r.created_at desc) from (
+                select e.created_at, e.rating, p.display_name, pr.title as prompt_title,
+                       c.id as challenge_id, c.title as challenge_title
+                from entries e
+                join profiles p on p.id = e.user_id
+                join prompts pr on pr.id = e.prompt_id
+                join challenges c on c.id = e.challenge_id
+                where e.book_id = b.id
+                order by e.created_at desc limit 10) r), '[]') as reads,
+            coalesce((select json_agg(r order by r.created_at desc) from (
+                select k.created_at, k.reason, p.display_name, pr.title as prompt_title,
+                       c.id as challenge_id, c.title as challenge_title
+                from considerations k
+                join profiles p on p.id = k.user_id
+                join prompts pr on pr.id = k.prompt_id
+                join challenges c on c.id = k.challenge_id
+                where k.book_id = b.id
+                order by k.created_at desc limit 10) r), '[]') as considering
+     from books b
+     where (cardinality($1::uuid[]) = 0
+            or (select count(distinct bt.tag_id) from book_tags bt
+                where bt.book_id = b.id and bt.tag_id = any($1::uuid[])) = cardinality($1::uuid[]))
+       and ($2::text is null or b.title ilike $2 or b.author ilike $2)
+       and (cardinality($1::uuid[]) > 0 or $2::text is not null
+            or exists (select 1 from book_tags bt where bt.book_id = b.id)
+            or exists (select 1 from entries e where e.book_id = b.id)
+            or exists (select 1 from considerations k where k.book_id = b.id))
+     order by greatest(
+       (select max(created_at) from book_tags where book_id = b.id),
+       (select max(created_at) from entries where book_id = b.id),
+       (select max(created_at) from considerations where book_id = b.id),
+       b.created_at) desc
+     limit 60`,
+    [tagIds, like]
+  );
 });
 async function handle(req) {
   try {

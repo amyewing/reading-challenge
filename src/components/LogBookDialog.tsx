@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import type { Book, Entry, Prompt } from '../lib/types';
 import BookPicker, { bookPayload, isComplete, pickedFromBook, type PickedBook } from './BookPicker';
+import DialogTags, { saveDialogTags } from './DialogTags';
+import { useMyBookTags } from '../lib/useMyBookTags';
 
 interface Props {
   prompt: Prompt;
@@ -21,6 +23,7 @@ export default function LogBookDialog({ prompt, existing, initialBook, onClose, 
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const myTags = useMyBookTags(picked?.kind === 'existing' ? picked.book.id : null);
 
   // Close on Escape
   useEffect(() => {
@@ -36,8 +39,10 @@ export default function LogBookDialog({ prompt, existing, initialBook, onClose, 
     setError(null);
     try {
       const body = { book: bookPayload(picked), finishedOn: finishedOn || null, rating, notes: notes.trim() || null };
-      if (existing) await api(`/api/entries/${existing.id}`, { method: 'PUT', body });
-      else await api(`/api/prompts/${prompt.id}/entries`, { method: 'POST', body });
+      const saved = existing
+        ? await api<{ bookId: string }>(`/api/entries/${existing.id}`, { method: 'PUT', body })
+        : await api<{ bookId: string }>(`/api/prompts/${prompt.id}/entries`, { method: 'POST', body });
+      await saveDialogTags(myTags, saved?.bookId);
       onSaved();
     } catch (err: any) {
       setError(err.message);
@@ -91,6 +96,7 @@ export default function LogBookDialog({ prompt, existing, initialBook, onClose, 
               Notes <span className="muted">(optional, visible to your group)</span>
               <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What did you think?" />
             </label>
+            <DialogTags myTags={myTags} />
           </>
         )}
 
