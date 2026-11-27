@@ -1,9 +1,9 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import { shrinkPhoto } from '../lib/avatar';
 import type { Book } from '../lib/types';
 import { AVATAR_PRESETS, PresetIcon } from '../lib/avatarPresets';
 import Avatar from './Avatar';
+import PhotoCropper from './PhotoCropper';
 import BookPicker, { bookPayload, isComplete, pickedFromBook, type PickedBook } from './BookPicker';
 
 interface Props {
@@ -31,26 +31,22 @@ export default function EditProfileDialog({ person, onClose, onSaved }: Props) {
   const [note, setNote] = useState(person.featured_note ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cropping, setCropping] = useState<File | null>(null); // a chosen photo being framed
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Escape closes the dialog, or just the photo framing if that is open
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && (cropping ? setCropping(null) : onClose());
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, cropping]);
 
-  async function choosePhoto(file: File | undefined) {
-    if (!file) return;
-    setError(null);
-    try {
-      const { full, thumb } = await shrinkPhoto(file);
-      setAvatar(full);
-      setThumb(thumb);
-      setPreset(null); // a photo replaces any icon
-      setAvatarChanged(true);
-    } catch (e: any) {
-      setError(e.message);
-    }
+  function usePhoto(photo: { full: string; thumb: string }) {
+    setAvatar(photo.full);
+    setThumb(photo.thumb);
+    setPreset(null); // a photo replaces any icon
+    setAvatarChanged(true);
+    setCropping(null);
   }
 
   const hasBook = isComplete(picked);
@@ -79,6 +75,18 @@ export default function EditProfileDialog({ person, onClose, onSaved }: Props) {
     }
   }
 
+  // Framing a chosen photo (move and zoom) before it is kept
+  if (cropping) {
+    return (
+      <div className="overlay">
+        <div className="dialog">
+          <h2>Frame your photo</h2>
+          <PhotoCropper file={cropping} onUse={usePhoto} onCancel={() => setCropping(null)} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="overlay" onClick={onClose}>
       <form className="dialog" onClick={(e) => e.stopPropagation()} onSubmit={save}>
@@ -101,7 +109,8 @@ export default function EditProfileDialog({ person, onClose, onSaved }: Props) {
                 accept="image/*"
                 aria-label="Choose a profile picture"
                 onChange={(e) => {
-                  choosePhoto(e.target.files?.[0]);
+                  const file = e.target.files?.[0];
+                  if (file) setCropping(file);
                   e.target.value = '';
                 }}
               />
@@ -124,6 +133,9 @@ export default function EditProfileDialog({ person, onClose, onSaved }: Props) {
               )}
             </div>
           </div>
+          <p className="small muted icon-intro">
+            You can move and zoom a photo before it is saved. To change how a saved photo is framed, upload it again.
+          </p>
           <p className="small muted icon-intro">Or pick an icon:</p>
           <div className="icon-grid" role="radiogroup" aria-label="Profile icon">
             {AVATAR_PRESETS.map((p) => (

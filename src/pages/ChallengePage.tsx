@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
@@ -15,6 +15,7 @@ import BookTagsDialog from '../components/BookTagsDialog';
 import Avatar from '../components/Avatar';
 import BookCover from '../components/BookCover';
 import TagChips from '../components/TagChips';
+import { ChatBubbleIcon } from '../components/Icon';
 
 /** The date stamp on a finished prompt: "Read 14 Mar 2027" (latest finish date), or just "Read" */
 function readStamp(entries: Entry[]) {
@@ -26,6 +27,19 @@ function readStamp(entries: Entry[]) {
   if (!latest) return 'Read';
   const d = new Date(latest + 'T00:00:00');
   return `Read ${d.getDate()} ${d.toLocaleDateString('en-GB', { month: 'short' })} ${d.getFullYear()}`;
+}
+
+/** A book that has a thread here but is no longer on the prompt: its title and discussion button on one line */
+function AlsoDiscussed({ title, button, thread }: { title: string; button: ReactNode; thread: ReactNode }) {
+  return (
+    <>
+      <div className="book-actions">
+        <strong className="small">{title}</strong>
+        {button}
+      </div>
+      {thread}
+    </>
+  );
 }
 
 type Dialog =
@@ -91,8 +105,6 @@ export default function ChallengePage() {
   // Tags by book (already sorted most-chosen first)
   const tagsByBook = new Map<string, BookTag[]>();
   for (const t of data.data.bookTags ?? []) tagsByBook.set(t.book_id, [...(tagsByBook.get(t.book_id) ?? []), t]);
-  const bookTags = (book: Book | null) =>
-    book && <TagChips tags={tagsByBook.get(book.id) ?? []} max={4} onEdit={() => setDialog({ kind: 'tags', book })} />;
   const canManage = !!challenge.can_manage;
   const isDraft = challenge.status === 'draft';
   // Your logged books, by prompt (several books can count toward one prompt)
@@ -121,30 +133,30 @@ export default function ChallengePage() {
     setThreads({ ...threads, [key]: isOpen ? undefined : rowId });
 
   /**
-   * "Discuss" / "3 comments · 1 new" under a book. Opens that book's own thread right there,
-   * under this row (rowId says which row, as the same book can be listed more than once).
+   * The discussion button for a book ("Discussion (3 · 1 new)", with a speech bubble) and, when
+   * open, that book's own thread. rowId says which row it is under, as the same book can be listed
+   * more than once. The button and thread are returned apart so the button can sit in a row.
    */
-  const discuss = (prompt: Prompt, book: Book | null, rowId: string) => {
-    if (!book) return null;
+  const discussion = (prompt: Prompt, book: Book, rowId: string) => {
     const key = threadKey(prompt.id, book.id);
     const first = !seenThreads.has(key);
     seenThreads.add(key);
     const isOpen = threads[key] === rowId || (threads[key] === 'first' && first);
     const { count, unread } = bookMessages(prompt.id, book.id);
-    return (
-      <>
-        <button
-          className="link small discuss-link"
-          aria-expanded={isOpen}
-          onClick={() => toggleThread(key, rowId, isOpen)}
-        >
-          {isOpen
-            ? 'Hide discussion'
-            : count > 0
-              ? `${count} ${count === 1 ? 'comment' : 'comments'}${unread > 0 ? ` · ${unread} new` : ''}`
-              : 'Discuss'}
-        </button>
-        {isOpen && (
+    const button = (
+      <button
+        type="button"
+        className={`pill-button ${unread > 0 ? 'has-new' : ''}`}
+        aria-expanded={isOpen}
+        onClick={() => toggleThread(key, rowId, isOpen)}
+      >
+        <ChatBubbleIcon />
+        {isOpen
+          ? 'Hide discussion'
+          : `Discussion${count > 0 ? ` (${count}${unread > 0 ? ` · ${unread} new` : ''})` : ''}`}
+      </button>
+    );
+    const thread = isOpen && (
           <div className="book-thread" id={`thread-${prompt.id}-${book.id}`}>
             <PromptChat
               key={key}
@@ -156,7 +168,33 @@ export default function ChallengePage() {
               onChanged={data.reload}
             />
           </div>
-        )}
+    );
+    return { button, thread };
+  };
+
+  /**
+   * One compact line under a book: its top tags, "+ Tags", and the discussion button, side by
+   * side, with the book's thread underneath when it is open.
+   */
+  const bookActions = (prompt: Prompt, book: Book | null, rowId: string) => {
+    if (!book) return null;
+    const tags = tagsByBook.get(book.id) ?? [];
+    const { button, thread } = discussion(prompt, book, rowId);
+    return (
+      <>
+        <div className="book-actions">
+          <TagChips tags={tags} max={3} inline />
+          <button
+            type="button"
+            className="pill-button"
+            title="Tag this book with genres, moods and more"
+            onClick={() => setDialog({ kind: 'tags', book })}
+          >
+            {tags.some((t) => t.mine) ? 'Edit tags' : '+ Tags'}
+          </button>
+          {button}
+        </div>
+        {thread}
       </>
     );
   };
@@ -389,8 +427,7 @@ export default function ChallengePage() {
                           )}
                         </div>
                         {entry.notes && <p className="small notes">{entry.notes}</p>}
-                        {bookTags(entry.books)}
-                        {discuss(prompt, entry.books, `e-${entry.id}`)}
+                        {bookActions(prompt, entry.books, `e-${entry.id}`)}
                       </div>
                       <button className="link" onClick={() => setDialog({ kind: 'log', prompt, entry })}>Edit</button>
                     </li>
@@ -416,8 +453,7 @@ export default function ChallengePage() {
                             </span>
                           </div>
                           {c.reason && <p className="small notes">{c.reason}</p>}
-                          {bookTags(c.books)}
-                          {discuss(prompt, c.books, `r-${c.id}`)}
+                          {bookActions(prompt, c.books, `r-${c.id}`)}
                         </div>
                         <div className="row idea-actions">
                           {!isDraft && (
@@ -449,8 +485,7 @@ export default function ChallengePage() {
                           <strong>{c.books?.title}</strong>
                           {c.books?.author && <span className="muted"> — {c.books.author}</span>}
                           {c.reason && <p className="small notes">{c.reason}</p>}
-                          {bookTags(c.books)}
-                          {discuss(prompt, c.books, `c-${c.id}`)}
+                          {bookActions(prompt, c.books, `c-${c.id}`)}
                         </div>
                         <div className="row idea-actions">
                           {!isDraft && (
@@ -530,8 +565,7 @@ export default function ChallengePage() {
                                     {e.rating && ` · ${'★'.repeat(e.rating)}`}
                                   </div>
                                   {e.notes && <p className="small notes">{e.notes}</p>}
-                                  {bookTags(e.books)}
-                                  {discuss(prompt, e.books, `oe-${e.id}`)}
+                                  {bookActions(prompt, e.books, `oe-${e.id}`)}
                                 </div>
                                 {addToMyList(e.books)}
                               </li>
@@ -553,8 +587,7 @@ export default function ChallengePage() {
                                     <MiniBar percent={c.progress} />
                                     <span><PersonLink id={c.user_id} name={c.profiles?.display_name} /> · about {c.progress ?? 0}%</span>
                                   </div>
-                                  {bookTags(c.books)}
-                                  {discuss(prompt, c.books, `or-${c.id}`)}
+                                  {bookActions(prompt, c.books, `or-${c.id}`)}
                                 </div>
                                 {addToMyList(c.books)}
                               </li>
@@ -574,8 +607,7 @@ export default function ChallengePage() {
                                   {c.books?.author && <span className="muted"> — {c.books.author}</span>}
                                   <div className="small muted"><PersonLink id={c.user_id} name={c.profiles?.display_name} /></div>
                                   {c.reason && <p className="small notes">{c.reason}</p>}
-                                  {bookTags(c.books)}
-                                  {discuss(prompt, c.books, `oc-${c.id}`)}
+                                  {bookActions(prompt, c.books, `oc-${c.id}`)}
                                 </div>
                                 {addToMyList(c.books)}
                               </li>
@@ -613,7 +645,7 @@ export default function ChallengePage() {
                     <ul className="also-discussed">
                       {alsoDiscussed.map((c) => (
                         <li key={c.book_id}>
-                          <strong className="small">{c.books!.title}</strong> {discuss(prompt, c.books, `also-${c.book_id}`)}
+                          <AlsoDiscussed title={c.books!.title} {...discussion(prompt, c.books!, `also-${c.book_id}`)} />
                         </li>
                       ))}
                     </ul>

@@ -9,15 +9,17 @@ interface Props {
   active?: string[];
   /** Opens the dialog for adding your own tags */
   onEdit?: () => void;
+  /** Just the chips, to sit inside a row of the caller's own (no wrapper, no edit link) */
+  inline?: boolean;
 }
 
 /** A book's tags, most-chosen first. Each links to other books with that tag. */
-export default function TagChips({ tags, max = 5, active = [], onEdit }: Props) {
+export default function TagChips({ tags, max = 5, active = [], onEdit, inline = false }: Props) {
   const [all, setAll] = useState(false);
-  if (tags.length === 0 && !onEdit) return null;
+  if (tags.length === 0 && (!onEdit || inline)) return null;
   const shown = all ? tags : tags.slice(0, max);
-  return (
-    <div className="tag-row tag-display">
+  const chips = (
+    <>
       {shown.map((t) => (
         <Link
           key={t.id}
@@ -34,11 +36,12 @@ export default function TagChips({ tags, max = 5, active = [], onEdit }: Props) 
           {all ? 'fewer' : `+${tags.length - max}`}
         </button>
       )}
-      {onEdit && (
+      {onEdit && !inline && (
         <button type="button" className="link small" onClick={onEdit}>
           {tags.some((t) => t.mine) ? 'Edit my tags' : 'Add tags'}
         </button>
       )}
-    </div>
+    </>
   );
+  return inline ? chips : <div className="tag-row tag-display">{chips}</div>;
 }

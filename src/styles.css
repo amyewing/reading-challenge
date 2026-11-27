@@ -284,7 +284,7 @@ input[type="range"]:focus { outline-offset: 4px; }
 @media (max-width: 520px) { .progress-note { grid-column: 1 / -1; } }
 
 /* Discussion */
-.discuss-link { display: inline-block; margin-top: 0.25rem; }
+
 .discussion { margin-top: 1rem; border-top: 1px dashed var(--line); padding-top: 0.6rem; }
 .chat { margin-top: 0.7rem; }
 .chat-filter { margin: 0 0 0.6rem; }
@@ -379,3 +379,27 @@ input[type="range"]:focus { outline-offset: 4px; }
 .discussion-found .chat-list { max-height: none; }
 .message-where { margin: 0.25rem 0 0; }
 .icon-intro { margin: 0.8rem 0 0; }
+
+/* Framing a photo */
+.cropper { display: flex; flex-direction: column; gap: 0.7rem; }
+.cropper-view { position: relative; width: min(280px, 100%); aspect-ratio: 1; margin: 0 auto; overflow: hidden; border-radius: 12px; background: var(--ink); touch-action: none; cursor: grab; user-select: none; }
+.cropper-view:active { cursor: grabbing; }
+.cropper-view:focus-visible { outline: 3px solid var(--sage-mid); outline-offset: 3px; }
+.cropper-view img { position: absolute; max-width: none; pointer-events: none; user-select: none; }
+.cropper-view::after { content: ''; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 999px rgba(43, 38, 34, 0.55), inset 0 0 0 2px var(--gold); pointer-events: none; }
+.cropper-zoom { display: flex; flex-direction: row; align-items: center; gap: 0.7rem; width: min(280px, 100%); margin: 0 auto; }
+.cropper-zoom input { flex: 1; }
+.cropper p { text-align: center; margin: 0; }
+
+/* One compact line under a book: tags, "+ Tags", and the discussion button */
+.book-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin-top: 0.4rem; }
+.book-actions .tag-chip.small { margin: 0; }
+.pill-button {
+  display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; font-weight: 500; line-height: 1.4;
+  padding: 0.1rem 0.65rem; border-radius: 99px; background: transparent; color: var(--green);
+  border: 1px dashed var(--sage-mid); cursor: pointer;
+}
+.pill-button:hover { background: var(--sage); border-style: solid; }
+.pill-button:focus-visible { outline: 3px solid var(--sage-mid); outline-offset: 2px; }
+.pill-button.has-new { background: var(--gold); border: 1px solid var(--gold-line); color: var(--ink); }
+.icon-bubble { flex: none; }
