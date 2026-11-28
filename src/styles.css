@@ -413,3 +413,18 @@ input[type="range"]:focus { outline-offset: 4px; }
 .find-it-list a { display: block; padding: 0.35rem 0.65rem; border-radius: 8px; text-decoration: none; font-size: 0.9rem; }
 .find-it-list a:hover, .find-it-list a:focus-visible { background: var(--sage); }
 .find-it-inline { margin: 0.5rem 0 0; }
+
+/* Adding and changing covers */
+button.cover-add { padding: 0; border: 1px dashed var(--sage-mid); background: var(--paper-soft); color: var(--green); font-family: var(--alegreya, inherit); font-size: 0.78rem; font-weight: 500; line-height: 1.2; text-align: center; cursor: pointer; }
+button.cover-add:hover { background: var(--sage); border-style: solid; }
+button.cover-add:focus-visible, .cover-edit:focus-visible { outline: 3px solid var(--sage-mid); outline-offset: 2px; }
+button.cover-add.cover-sm { font-size: 1.1rem; }
+.cover-edit { position: relative; flex: none; padding: 0; border: none; background: none; line-height: 0; cursor: pointer; border-radius: 4px; }
+.cover-edit:hover { background: none; }
+.cover-edit-mark { position: absolute; right: -4px; bottom: -4px; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: var(--card); color: var(--green); border: 1px solid var(--sage-mid); font-size: 0.7rem; line-height: 1; opacity: 0.85; }
+.cover-edit:hover .cover-edit-mark, .cover-edit:focus-visible .cover-edit-mark { opacity: 1; background: var(--gold); }
+.cover-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 0.6rem; }
+.cover-choice { padding: 0; border: 2px solid transparent; border-radius: 6px; background: var(--paper-soft); line-height: 0; cursor: pointer; overflow: hidden; }
+.cover-choice:hover:not(:disabled) { border-color: var(--green); background: var(--paper-soft); }
+.cover-choice:focus-visible { outline: 3px solid var(--sage-mid); outline-offset: 2px; }
+.cover-choice img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; display: block; }

@@ -418,7 +418,7 @@ export default function ChallengePage() {
                 <ul className="my-entries">
                   {mine.map((entry) => (
                     <li key={entry.id} className="my-entry">
-                      <BookCover book={entry.books} />
+                      <BookCover book={entry.books} onChanged={data.reload} />
                       <div className="grow">
                         <strong>{entry.books?.title}</strong>
                         {entry.books?.author && <div className="small muted">{entry.books.author}</div>}
@@ -443,7 +443,7 @@ export default function ChallengePage() {
                   <ul>
                     {myReading.map((c) => (
                       <li key={c.id}>
-                        <BookCover book={c.books} small />
+                        <BookCover book={c.books} small onChanged={data.reload} />
                         <div className="grow">
                           <strong>{c.books?.title}</strong>
                           {c.books?.author && <span className="muted"> — {c.books.author}</span>}
@@ -482,7 +482,7 @@ export default function ChallengePage() {
                   <ul>
                     {myList.map((c) => (
                       <li key={c.id}>
-                        <BookCover book={c.books} small />
+                        <BookCover book={c.books} small onChanged={data.reload} />
                         <div className="grow">
                           <strong>{c.books?.title}</strong>
                           {c.books?.author && <span className="muted"> — {c.books.author}</span>}
@@ -558,7 +558,7 @@ export default function ChallengePage() {
                           <ul>
                             {othersRead.map((e) => (
                               <li key={e.id}>
-                                <BookCover book={e.books} small />
+                                <BookCover book={e.books} small onChanged={data.reload} />
                                 <div className="grow">
                                   <strong>{e.books?.title}</strong>
                                   {e.books?.author && <span className="muted"> — {e.books.author}</span>}
@@ -581,7 +581,7 @@ export default function ChallengePage() {
                           <ul>
                             {othersReading.map((c) => (
                               <li key={c.id}>
-                                <BookCover book={c.books} small />
+                                <BookCover book={c.books} small onChanged={data.reload} />
                                 <div className="grow">
                                   <strong>{c.books?.title}</strong>
                                   {c.books?.author && <span className="muted"> — {c.books.author}</span>}
@@ -603,7 +603,7 @@ export default function ChallengePage() {
                           <ul>
                             {othersConsidering.map((c) => (
                               <li key={c.id}>
-                                <BookCover book={c.books} small />
+                                <BookCover book={c.books} small onChanged={data.reload} />
                                 <div className="grow">
                                   <strong>{c.books?.title}</strong>
                                   {c.books?.author && <span className="muted"> — {c.books.author}</span>}

@@ -162,7 +162,7 @@ export default function FindBooks() {
           <ul className="book-results">
             {results.map((b) => (
               <li key={b.id} className="card book-result">
-                <BookCover book={b} />
+                <BookCover book={b} onChanged={() => setReloadKey((k) => k + 1)} />
                 <div className="grow">
                   <strong>{b.title}</strong>
                   {b.author && (

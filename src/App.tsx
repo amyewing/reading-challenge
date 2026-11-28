@@ -76,13 +76,13 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        const saved = await api<{ displayName?: string | null }>('/api/me', {
+        const saved = await api<{ displayName?: string | null; isSiteAdmin?: boolean }>('/api/me', {
           method: 'PUT',
           body: { displayName: user.name, email: user.email },
         });
         if (cancelled) return;
         // A name you chose yourself on your profile wins over the one from sign-in
-        setMe({ id: user.id, name: saved?.displayName || user.name });
+        setMe({ id: user.id, name: saved?.displayName || user.name, isSiteAdmin: saved?.isSiteAdmin === true });
         const pending = localStorage.getItem(PENDING_INVITE_KEY);
         if (pending && !location.pathname.startsWith('/invite/')) navigate(`/invite/${pending}`);
       } catch (e: any) {

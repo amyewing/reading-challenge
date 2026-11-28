@@ -80,9 +80,10 @@ route('PUT', '/api/me', async ({ q, body }) => {
     text(body.displayName, 'Name', { max: 80 }) ?? 'Reader',
     text(body.email, 'Email', { max: 320 }),
   ]);
-  // The name on file (a name you chose yourself is kept when Kinde's details change)
-  const [me] = await q('select display_name from profiles where id = current_user_id()');
-  return { ok: true, displayName: me?.display_name ?? null };
+  // The name on file (a name you chose yourself is kept when Kinde's details change), and whether
+  // you are a site admin (someone who can change any book's cover)
+  const [me] = await q('select display_name, is_site_admin() as is_site_admin from profiles where id = current_user_id()');
+  return { ok: true, displayName: me?.display_name ?? null, isSiteAdmin: me?.is_site_admin === true };
 });
 
 /** A profile picture: a small JPEG as a data URL (the app shrinks it before sending), or null to remove it. */
@@ -421,7 +422,7 @@ route('GET', '/api/challenges/:challengeId', async ({ q, params }) => {
   );
   const entries = await q(
     `select e.id, e.prompt_id, e.user_id, e.finished_on::text, e.rating, e.notes,
-            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key) as books,
+            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key, 'cover_added_by', b.cover_added_by) as books,
             json_build_object('display_name', p.display_name) as profiles
      from entries e
      join books b on b.id = e.book_id
@@ -432,7 +433,7 @@ route('GET', '/api/challenges/:challengeId', async ({ q, params }) => {
   );
   const considerations = await q(
     `select c.id, c.prompt_id, c.user_id, c.reason, c.created_at, c.status, c.progress, c.started_on::text,
-            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key) as books,
+            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key, 'cover_added_by', b.cover_added_by) as books,
             json_build_object('display_name', p.display_name) as profiles
      from considerations c
      join books b on b.id = c.book_id
@@ -466,7 +467,7 @@ route('GET', '/api/challenges/:challengeId', async ({ q, params }) => {
             count(*) filter (where m.user_id <> current_user_id()
                                and m.created_at > coalesce(r.last_read_at, '-infinity'))::int as unread,
             case when b.id is null then null
-                 else json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key) end as books
+                 else json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key, 'cover_added_by', b.cover_added_by) end as books
      from prompt_messages m
      left join books b on b.id = m.book_id
      left join prompt_message_reads r on r.prompt_id = m.prompt_id and r.user_id = current_user_id()
@@ -803,7 +804,7 @@ route('GET', '/api/people/:userId', async ({ q, params }) => {
   const [person] = await q(
     `select p.id, p.display_name, p.avatar, p.avatar_preset, p.featured_note,
             case when b.id is null then null
-                 else json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key) end as featured_book
+                 else json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key, 'cover_added_by', b.cover_added_by) end as featured_book
      from profiles p left join books b on b.id = p.featured_book_id
      where p.id = $1`,
     [params.userId],
@@ -838,7 +839,7 @@ route('GET', '/api/people/:userId', async ({ q, params }) => {
 
   const entries = await q(
     `select e.id, e.finished_on::text, e.rating, e.notes, e.created_at,
-            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key) as books,
+            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key, 'cover_added_by', b.cover_added_by) as books,
             pr.id as prompt_id, pr.title as prompt_title, c.id as challenge_id, c.title as challenge_title
      from entries e
      join books b on b.id = e.book_id
@@ -851,7 +852,7 @@ route('GET', '/api/people/:userId', async ({ q, params }) => {
 
   const considerations = await q(
     `select k.id, k.status, k.progress, k.started_on::text, k.reason, k.created_at,
-            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key) as books,
+            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key, 'cover_added_by', b.cover_added_by) as books,
             pr.id as prompt_id, pr.title as prompt_title, c.id as challenge_id, c.title as challenge_title
      from considerations k
      join books b on b.id = k.book_id
@@ -891,6 +892,23 @@ route('POST', '/api/tags', async ({ q, body }) => {
   );
   const [tag] = await q('select id, name, category, suggested, position from tags where slug = $1', [slug]);
   return { ...tag, book_count: 0 };
+});
+
+// Covers. A cover can only be added to a book that has none; after that only the person who added
+// it, or a site admin, can change or remove it (the database function enforces this).
+
+/** Choose a cover from Open Library */
+route('PUT', '/api/books/:bookId/cover', async ({ q, params, body }) => {
+  const url = text(body.coverUrl, 'Cover', { max: 200, required: true })!;
+  if (!new RegExp('^https://covers[.]openlibrary[.]org/b/id/[0-9]{1,12}-M[.]jpg$').test(url)) throw badRequest('That cover is not valid.');
+  await q('select set_book_cover($1, $2)', [params.bookId, url]);
+  return { ok: true };
+});
+
+/** Take a cover off, so the book counts as missing one again */
+route('DELETE', '/api/books/:bookId/cover', async ({ q, params }) => {
+  await q('select remove_book_cover($1)', [params.bookId]);
+  return { ok: true };
 });
 
 /** A book's tags: how many people chose each, and whether you did */
@@ -946,7 +964,7 @@ route('POST', '/api/books/search', async ({ q, body }) => {
   const like = words ? `%${words.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
 
   return q(
-    `select b.id, b.title, b.author, b.cover_url, b.open_library_key,
+    `select b.id, b.title, b.author, b.cover_url, b.open_library_key, b.cover_added_by,
             coalesce((select json_agg(x order by x.count desc, x.name) from (
                 select t.id, t.name, t.category, count(*)::int as count, bool_or(bt.user_id = current_user_id()) as mine
                 from book_tags bt join tags t on t.id = bt.tag_id

@@ -30,6 +30,7 @@ The database connection string is a secret that lives only on the server. The br
 - Log a book against a prompt: search Open Library (by anything, title only, or author only) or type it in, then add a finish date, a rating and notes. Several different books can count toward the same prompt.
 - **Tag** books with genre, mood, pace and more. The suggested tags are based on Goodreads' genres and StoryGraph's moods, pace and story questions, plus popular reader tags and content notes ([db/tags_seed.sql](db/tags_seed.sql)). Anyone can add their own tags too. Each person's tags are counted separately, so a book shows how many people chose each tag.
 - **Find books** by tag (books with all the chosen tags), title or author. Each result shows its tags and who in your groups read it, is considering it or has been discussing it (the latest messages, with a link to join the discussion), and for which prompt.
+- **Covers**: a book with no cover shows a "+ Cover" tile. Click it to choose from the covers Open Library has for that book. A cover can only be added to a book that has none; after that only the person who added it, or a **site admin**, can change or remove it (a cover that came with the book from Open Library can only be changed by a site admin). Removing a cover makes the book "missing" again. Covers are shared, so everyone in every group sees the same one.
 - **Find it** links on every book (under it on a challenge, on Find books, and on a featured book): Amazon, Bookshop.org, Goodreads and Open Library. They are searches built from the title and author (or Open Library's own page when the book came from there), so nothing is stored and nobody has to paste links.
 - **Start reading** a book (from your list or a new one) and say roughly how far through it you are (a rough percentage, updated whenever you like). Logging it as read finishes it. Everyone sees who is reading what, who has started a challenge, and who has not.
 - **Discuss** each prompt: a general thread for how to interpret the prompt, and a thread for each book that lives right under that book (under each book, one compact line shows its top tags, "+ Tags", and a Discussion button with the comment count and how many are new to you). Messages can be marked as containing spoilers, which stay blurred until someone taps to show them. You edit and delete your own messages; a challenge's organiser and group admins can delete any. Threads about a book that is no longer on the prompt stay reachable under "Also discussed".
@@ -73,7 +74,13 @@ Check everything compiles with `npm run typecheck`.
 
 ### Neon (database)
 1. Create a project.
-2. On a new database, run [db/schema.sql](db/schema.sql) and then [db/tags_seed.sql](db/tags_seed.sql) in the SQL Editor. The existing database was created with an earlier version and has been brought up to date with the files in [db/migrations/](db/migrations/), in order (002 to 010, with the tag seed after 006). Read each file's header first: 005 must be applied only after the API that goes with it is deployed, and 009 (needs PostgreSQL 15 or newer) and 010 must be applied before the API that goes with them is deployed. The tag seed can be re-run at any time to add new suggested tags.
+2. On a new database, run [db/schema.sql](db/schema.sql) and then [db/tags_seed.sql](db/tags_seed.sql) in the SQL Editor. The existing database was created with an earlier version and has been brought up to date with the files in [db/migrations/](db/migrations/), in order (002 to 011, with the tag seed after 006). Read each file's header first: 005 must be applied only after the API that goes with it is deployed, and 009 (needs PostgreSQL 15 or newer), 010 and 011 must be applied before the API that goes with them is deployed. The tag seed can be re-run at any time to add new suggested tags.
+   **Site admins** (people who can change or remove any book's cover; not the same as group admins) are a short list kept in the database and added by hand, because nothing in the app can create one. In the SQL Editor, find the person by their sign-in email:
+   ```sql
+   insert into site_admins (user_id) select id from profiles where lower(email) = lower('someone@example.com');
+   delete from site_admins where user_id = (select id from profiles where lower(email) = lower('someone@example.com'));
+   ```
+   (The first adds one, the second removes one. They must have signed in at least once.)
 3. For `DATABASE_URL`, use **Connect**, role `neondb_owner`, with **Connection pooling** on.
 4. The Neon **Data API** is not used and should stay disabled.
 
@@ -109,7 +116,7 @@ src/pages/               screens: Home, GroupPage, GroupSettings, NewChallenge, 
 src/components/          BookPicker (Open Library search), LogBookDialog, ConsiderDialog,
                          Logo, ReadingProgressDialog, PromptChat, TagPicker, TagChips, BookTagsDialog,
                          ChallengeEditor, BookCover, RichText (notes with links), MiniBar, PersonLink,
-                         ChatMessage, Avatar (photo, icon or initial), EditProfileDialog, BackToTop
+                         ChatMessage, Avatar (photo, icon or initial), EditProfileDialog, BackToTop, FindItLinks, CoverDialog
 ```
 
 ## Ideas for next steps

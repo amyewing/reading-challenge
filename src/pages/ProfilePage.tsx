@@ -154,7 +154,7 @@ export default function ProfilePage() {
 
       {person.featured_book ? (
         <section className="card featured" id="profile-featured">
-          <BookCover book={person.featured_book} />
+          <BookCover book={person.featured_book} onChanged={data.reload} />
           <div className="grow">
             <p className="eyebrow">{isMe ? 'Currently featuring' : `${person.display_name} is featuring`}</p>
             <h3>{person.featured_book.title}</h3>
@@ -194,7 +194,7 @@ export default function ProfilePage() {
           <ul className="book-list">
             {readingBooks.map(({ book, rows }) => (
               <li key={book.id}>
-                <BookCover book={book} small />
+                <BookCover book={book} small onChanged={data.reload} />
                 <div className="grow">
                   <strong>{book.title}</strong>
                   {book.author && <span className="muted"> — {book.author}</span>}
@@ -224,7 +224,7 @@ export default function ProfilePage() {
             const rating = rows.map((r) => r.rating).find((r) => r != null);
             return (
               <li key={book.id}>
-                <BookCover book={book} small />
+                <BookCover book={book} small onChanged={data.reload} />
                 <div className="grow">
                   <strong>{book.title}</strong>
                   {book.author && <span className="muted"> — {book.author}</span>}
@@ -252,7 +252,7 @@ export default function ProfilePage() {
         <ul className="book-list">
           {consideringBooks.map(({ book, rows }) => (
             <li key={book.id}>
-              <BookCover book={book} small />
+              <BookCover book={book} small onChanged={data.reload} />
               <div className="grow">
                 <strong>{book.title}</strong>
                 {book.author && <span className="muted"> — {book.author}</span>}

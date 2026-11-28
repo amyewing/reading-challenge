@@ -99,7 +99,15 @@ create table books (
   open_library_key  text unique,
   first_published   int,
   created_by        text default current_user_id() references profiles(id) on delete set null,
-  created_at        timestamptz not null default now()
+  created_at        timestamptz not null default now(),
+  cover_added_by    text references profiles(id) on delete set null,   -- who added the cover (null: it came with the book)
+  cover_updated_at  timestamptz
+);
+
+-- Site admins: a short list kept by hand (see db/migrations/011_book_covers.sql); not group admins
+create table site_admins (
+  user_id   text primary key references profiles(id) on delete cascade,
+  added_at  timestamptz not null default now()
 );
 
 alter table profiles add constraint profiles_featured_book_fk
@@ -367,6 +375,50 @@ begin
 end;
 $$;
 
+-- Site admins, and covers: only a missing cover can be added; then only its adder or a site admin can change it
+create or replace function is_site_admin()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from site_admins where user_id = current_user_id());
+$$;
+
+-- Choose a cover from Open Library for a book (only if it has none, or you may manage its cover)
+create or replace function set_book_cover(p_book uuid, p_url text)
+returns void language plpgsql security definer set search_path = public as $$
+declare b books%rowtype;
+begin
+  if current_user_id() is null then raise exception 'Not signed in'; end if;
+  if p_url is null or p_url !~ '^https://covers\.openlibrary\.org/b/id/[0-9]{1,12}-M\.jpg$' then
+    raise exception 'That cover is not valid.';
+  end if;
+  select * into b from books where id = p_book for update;
+  if not found then raise exception 'That book was not found.'; end if;
+  if b.cover_url is not null and b.cover_added_by is distinct from current_user_id() and not is_site_admin() then
+    raise exception 'This book already has a cover. Only the person who added it, or a site admin, can change it.';
+  end if;
+  update books
+  set cover_url = p_url, cover_added_by = current_user_id(), cover_updated_at = now()
+  where id = p_book;
+end;
+$$;
+
+-- Take a cover off a book (the person who added it, or a site admin)
+create or replace function remove_book_cover(p_book uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare b books%rowtype;
+begin
+  if current_user_id() is null then raise exception 'Not signed in'; end if;
+  select * into b from books where id = p_book for update;
+  if not found then raise exception 'That book was not found.'; end if;
+  if b.cover_url is null then return; end if;
+  if b.cover_added_by is distinct from current_user_id() and not is_site_admin() then
+    raise exception 'Only the person who added this cover, or a site admin, can remove it.';
+  end if;
+  update books
+  set cover_url = null, cover_added_by = null, cover_updated_at = now()
+  where id = p_book;
+end;
+$$;
+
 -- Hand a group to another member: they become owner, the old owner an admin
 create or replace function transfer_group(p_group_id uuid, p_new_owner text)
 returns void language plpgsql security definer set search_path = public as $$
@@ -467,6 +519,10 @@ create policy prompts_delete on prompts for delete using (can_manage_challenge(c
 -- books: any signed-in user can read the catalog (writes via upsert_book)
 create policy books_select on books for select using ((select current_user_id()) is not null);
 
+-- site_admins: you can see only your own row; the list is changed by hand, never from the app
+alter table site_admins enable row level security;
+create policy site_admins_select on site_admins for select using (user_id = (select current_user_id()));
+
 -- entries: group members see everyone's; you manage only your own;
 -- books can only be logged against launched challenges
 create policy entries_select on entries for select using (is_group_member(challenge_group(challenge_id)));
@@ -554,3 +610,7 @@ grant app_user to current_user;
 grant usage on schema public to app_user;
 grant select, insert, update, delete on all tables in schema public to app_user;
 grant execute on all functions in schema public to app_user;
+
+-- Nobody can change the list of site admins from the app
+revoke all on site_admins from app_user;
+grant select on site_admins to app_user;

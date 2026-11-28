@@ -48,6 +48,8 @@ export interface Book {
   cover_url: string | null;
   /** Open Library work, e.g. "/works/OL45804W" (books picked from Open Library have one) */
   open_library_key?: string | null;
+  /** Who added the cover; null when it came with the book from Open Library */
+  cover_added_by?: string | null;
 }
 
 export interface Entry {
@@ -102,6 +104,8 @@ export interface BookTag {
 export interface Me {
   id: string;
   name: string;
+  /** A site admin can change or remove any book's cover (not the same as a group admin) */
+  isSiteAdmin?: boolean;
 }
 
 /** A message in a discussion thread (the prompt's general thread, or one book's thread on it) */
