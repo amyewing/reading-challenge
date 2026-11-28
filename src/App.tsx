@@ -14,6 +14,7 @@ import GroupSettings from './pages/GroupSettings';
 import ProfilePage from './pages/ProfilePage';
 import Logo from './components/Logo';
 import BackToTop from './components/BackToTop';
+import TutorialDialog from './components/TutorialDialog';
 
 export const PENDING_INVITE_KEY = 'pendingInvite';
 
@@ -28,6 +29,12 @@ const RenameMeContext = createContext<(name: string) => void>(() => undefined);
 /** Update the name shown for you in the top bar after you change it on your profile */
 export function useRenameMe() {
   return useContext(RenameMeContext);
+}
+
+const OpenTutorialContext = createContext<() => void>(() => undefined);
+/** Open the how-it-works guide (the same one new people see on their first visit) */
+export function useOpenTutorial() {
+  return useContext(OpenTutorialContext);
 }
 
 /** Works with both v4 (snake_case) and v5 (camelCase) of the Kinde React SDK. */
@@ -46,6 +53,7 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const [me, setMe] = useState<Me | null>(null);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
   const [syncError, setSyncError] = useState<{ message: string; needsSignIn: boolean } | null>(null);
 
   // Remember invite codes across the sign-in round trip
@@ -76,13 +84,19 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        const saved = await api<{ displayName?: string | null; isSiteAdmin?: boolean }>('/api/me', {
+        const saved = await api<{ displayName?: string | null; isSiteAdmin?: boolean; tutorialSeen?: boolean }>('/api/me', {
           method: 'PUT',
           body: { displayName: user.name, email: user.email },
         });
         if (cancelled) return;
         // A name you chose yourself on your profile wins over the one from sign-in
-        setMe({ id: user.id, name: saved?.displayName || user.name, isSiteAdmin: saved?.isSiteAdmin === true });
+        // A missing tutorialSeen (an older server) counts as seen, so nobody gets the guide by mistake
+        setMe({
+          id: user.id,
+          name: saved?.displayName || user.name,
+          isSiteAdmin: saved?.isSiteAdmin === true,
+          tutorialSeen: saved?.tutorialSeen !== false,
+        });
         const pending = localStorage.getItem(PENDING_INVITE_KEY);
         if (pending && !location.pathname.startsWith('/invite/')) navigate(`/invite/${pending}`);
       } catch (e: any) {
@@ -104,7 +118,8 @@ export default function App() {
           <h1>Read more widely, together.</h1>
           <p>
             Create a group for your family or friends, set up a yearly challenge with prompts, and log the
-            books you read for each one.
+            books you read for each one. It isn’t a book tracker like Goodreads: it’s a way to read together, one
+            challenge at a time.
           </p>
           {inviteMatch && <p className="notice">You've been invited to a reading group. Sign in or create an account to join.</p>}
           <div className="row">
@@ -142,11 +157,32 @@ export default function App() {
 
   if (!me) return <div className="page narrow muted">Loading…</div>;
 
+  // New people get the guide once, but not while an invite is being offered: they read the "Join" page
+  // first and see the guide when they land in the group
+  let invitePending = false;
+  try {
+    invitePending = !!localStorage.getItem(PENDING_INVITE_KEY);
+  } catch {
+    /* storage unavailable: treat as no invite */
+  }
+  const showTutorial =
+    tutorialOpen || (me.tutorialSeen === false && !invitePending && !location.pathname.startsWith('/invite/'));
+
+  function closeTutorial() {
+    setTutorialOpen(false);
+    if (me && me.tutorialSeen === false) {
+      setMe({ ...me, tutorialSeen: true });
+      // Remembered on the account; if this fails the guide simply shows again next visit
+      api('/api/me/tutorial-seen', { method: 'POST' }).catch(() => undefined);
+    }
+  }
+
   const onMyProfile = location.pathname === '/me' || location.pathname === `/people/${me.id}`;
 
   return (
     <MeContext.Provider value={me}>
      <RenameMeContext.Provider value={(name) => setMe((m) => (m ? { ...m, name } : m))}>
+     <OpenTutorialContext.Provider value={() => setTutorialOpen(true)}>
       <header className="topbar">
         <Link to="/" className="brand" aria-label="Reading Challenge, home">
           <Logo />
@@ -163,6 +199,10 @@ export default function App() {
             <span className="wide-only">My profile</span>
             <span className="narrow-only">Profile</span>
           </Link>
+          <button className="link" onClick={() => setTutorialOpen(true)} aria-label="How it works">
+            <span className="wide-only">How it works</span>
+            <span className="narrow-only help-button" aria-hidden="true">?</span>
+          </button>
           <button className="link" onClick={() => logout()} title={`Signed in as ${me.name}`}>Sign out</button>
         </nav>
       </header>
@@ -182,6 +222,8 @@ export default function App() {
         </Routes>
         <BackToTop />
       </main>
+      {showTutorial && <TutorialDialog onClose={closeTutorial} />}
+     </OpenTutorialContext.Provider>
      </RenameMeContext.Provider>
     </MeContext.Provider>
   );

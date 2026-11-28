@@ -6302,8 +6302,19 @@ route("PUT", "/api/me", async ({ q, body }) => {
     text(body.displayName, "Name", { max: 80 }) ?? "Reader",
     text(body.email, "Email", { max: 320 })
   ]);
-  const [me] = await q("select display_name, is_site_admin() as is_site_admin from profiles where id = current_user_id()");
-  return { ok: true, displayName: me?.display_name ?? null, isSiteAdmin: me?.is_site_admin === true };
+  const [me] = await q(
+    "select display_name, is_site_admin() as is_site_admin, tutorial_seen_at is not null as tutorial_seen from profiles where id = current_user_id()"
+  );
+  return {
+    ok: true,
+    displayName: me?.display_name ?? null,
+    isSiteAdmin: me?.is_site_admin === true,
+    tutorialSeen: me?.tutorial_seen === true
+  };
+});
+route("POST", "/api/me/tutorial-seen", async ({ q }) => {
+  await q("update profiles set tutorial_seen_at = coalesce(tutorial_seen_at, now()) where id = current_user_id()");
+  return { ok: true };
 });
 function avatarData(value, maxLength = 8e4) {
   if (value === null || value === "") return null;

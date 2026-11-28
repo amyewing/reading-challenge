@@ -432,3 +432,16 @@ button.cover-add.cover-sm { font-size: 1.1rem; }
 /* Framing a book cover: a portrait rectangle instead of a round avatar */
 .cropper-view.rect { width: min(220px, 100%); border-radius: 6px; }
 .cropper-view.rect::after { border-radius: 0; box-shadow: inset 0 0 0 2px var(--gold); }
+
+/* First-time tutorial */
+.tutorial { max-width: 460px; gap: 1rem; outline: none; }
+.tutorial-art { display: block; width: 100%; max-width: 220px; height: auto; margin: 0 auto; padding: 0.6rem; background: var(--paper-soft); border-radius: 16px; fill: none; stroke: var(--green); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tutorial-art .accent { stroke: var(--red); }
+.tutorial-text h2 { margin: 0 0 0.5rem; }
+.tutorial-text p { margin: 0 0 0.6rem; }
+.tutorial-text ul { margin: 0 0 0.6rem; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.tutorial-dots { display: flex; justify-content: center; gap: 0.4rem; }
+.tutorial-dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.tutorial-dots span.on { background: var(--green); }
+.tutorial-actions { margin-top: 0; flex-wrap: nowrap; }
+.help-button { border: 1.5px solid currentColor; border-radius: 50%; width: 1.5rem; height: 1.5rem; padding: 0; line-height: 1; font-weight: 700; }

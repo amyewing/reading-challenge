@@ -150,6 +150,7 @@ export default function ProfilePage() {
           {isMe && <button onClick={() => setEditing(true)}>Edit profile</button>}
         </div>
       </div>
+      {isMe && <p className="small muted">Your profile shows what you've read for challenges. Books are added from inside a challenge's prompts.</p>}
       {!isMe && <p className="small muted">You can see the groups and challenges you share with {person.display_name}.</p>}
 
       {person.featured_book ? (
@@ -218,7 +219,7 @@ export default function ProfilePage() {
 
       <section className="card" id="profile-read">
         <div className="strip">Read</div>
-        {readBooks.length === 0 && <p className="muted">No books read yet.</p>}
+        {readBooks.length === 0 && <p className="muted">No books read yet. They appear here when you log them for a challenge prompt.</p>}
         <ul className="book-list">
           {readBooks.map(({ book, rows }) => {
             const rating = rows.map((r) => r.rating).find((r) => r != null);
@@ -248,7 +249,7 @@ export default function ProfilePage() {
 
       <section className="card" id="profile-considering">
         <div className="strip">Considering</div>
-        {consideringBooks.length === 0 && <p className="muted">Nothing on {whose} list right now.</p>}
+        {consideringBooks.length === 0 && <p className="muted">Nothing on {whose} list right now.{isMe && ' Books you consider for a challenge prompt are listed here.'}</p>}
         <ul className="book-list">
           {consideringBooks.map(({ book, rows }) => (
             <li key={book.id}>

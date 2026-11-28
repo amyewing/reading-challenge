@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
+import { useOpenTutorial } from '../App';
 import { useAsync } from '../lib/useAsync';
 
 interface GroupRow {
@@ -13,6 +14,7 @@ interface GroupRow {
 
 export default function Home() {
   const navigate = useNavigate();
+  const openTutorial = useOpenTutorial();
   const groups = useAsync(() => api<GroupRow[]>('/api/groups'), []);
 
   const [name, setName] = useState('');
@@ -39,7 +41,11 @@ export default function Home() {
       {groups.loading && <p className="muted">Loading…</p>}
       {groups.error && <p className="error">{groups.error}</p>}
       {groups.data && groups.data.length === 0 && (
-        <p className="muted">You're not in any groups yet. Create one below, or ask someone for an invite link.</p>
+        <p className="muted">
+          You're not in any groups yet. Create one below, or ask someone for an invite link. Books are logged inside a
+          group's challenges.{' '}
+          <button className="link" onClick={openTutorial}>How it works</button>
+        </p>
       )}
       <div className="cards">
         {groups.data?.map((g) => (

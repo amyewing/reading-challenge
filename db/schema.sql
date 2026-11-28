@@ -32,7 +32,8 @@ create table profiles (
   featured_book_id uuid,                                       -- references books(id), added after books
   featured_note text check (featured_note is null or length(featured_note) <= 1000),
   avatar_thumb  text check (avatar_thumb is null or (avatar_thumb like 'data:image/jpeg;base64,%' and length(avatar_thumb) <= 12000)),
-  avatar_preset text check (avatar_preset is null or avatar_preset ~ '^[a-z-]{1,30}$')   -- a built-in literary icon
+  avatar_preset text check (avatar_preset is null or avatar_preset ~ '^[a-z-]{1,30}$'),  -- a built-in literary icon
+  tutorial_seen_at timestamptz                                 -- when they closed the first-time guide (null: show it once)
 );
 
 create table groups (

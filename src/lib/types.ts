@@ -106,6 +106,8 @@ export interface Me {
   name: string;
   /** A site admin can change or remove any book's cover (not the same as a group admin) */
   isSiteAdmin?: boolean;
+  /** false until they close the first-time tutorial (a missing value counts as seen) */
+  tutorialSeen?: boolean;
 }
 
 /** A message in a discussion thread (the prompt's general thread, or one book's thread on it) */

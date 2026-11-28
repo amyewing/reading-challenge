@@ -36,6 +36,7 @@ The database connection string is a secret that lives only on the server. The br
 - **Discuss** each prompt: a general thread for how to interpret the prompt, and a thread for each book that lives right under that book (under each book, one compact line shows its top tags, "+ Tags", and a Discussion button with the comment count and how many are new to you). Messages can be marked as containing spoilers, which stay blurred until someone taps to show them. You edit and delete your own messages; a challenge's organiser and group admins can delete any. Threads about a book that is no longer on the prompt stay reachable under "Also discussed".
 - See everyone's progress (books read, plus prompts they have a book in mind for), and what others read or are considering for each prompt. Hide the prompts you've finished to focus on what's left.
 - **Profiles**: "My profile" in the top bar (next to Home and Find books) opens your profile, where the numbers at the top jump to each section. It shows your groups, your challenges (with how far you are in each), and every book you have read, are reading or are considering. Click anyone's name to see theirs: you only see the groups and challenges you share with them, and never their email. On your own profile, **Edit profile** lets you change your display name (it stays when you sign in again), add a profile picture (a photo you can move and zoom to frame before it is saved, then shrunk to a small square in your browser, or one of the built-in literary icons: open book, quill, owl, teacup and more), and feature a book with a note on why: it needn't be your favourite, just one you are enthusiastic about right now. Your picture shows beside your name in group member lists and challenge progress.
+- A **first-time tutorial**: a short five-step card (what the site is for, groups, challenges and prompts, discussions and Find books, your profile) that brand-new people see once, right after joining a group if they came by invite link. It makes clear this is for reading together through challenges, not a Goodreads-style book tracker. Closing it is remembered on the account (so it does not return on another device), and **How it works** in the top bar opens it again. People who had already signed in before it was added were marked as having seen it. The wording lives in [src/components/TutorialDialog.tsx](src/components/TutorialDialog.tsx).
 - A **Back to top** link at the bottom of any page that scrolls.
 - Leave a group. Challenge creators and admins can delete a challenge
 
@@ -74,7 +75,7 @@ Check everything compiles with `npm run typecheck`.
 
 ### Neon (database)
 1. Create a project.
-2. On a new database, run [db/schema.sql](db/schema.sql) and then [db/tags_seed.sql](db/tags_seed.sql) in the SQL Editor. The existing database was created with an earlier version and has been brought up to date with the files in [db/migrations/](db/migrations/), in order (002 to 012, with the tag seed after 006). Read each file's header first: 005 must be applied only after the API that goes with it is deployed, and 009 (needs PostgreSQL 15 or newer), 010, 011 and 012 must be applied before the API that goes with them is deployed. The tag seed can be re-run at any time to add new suggested tags.
+2. On a new database, run [db/schema.sql](db/schema.sql) and then [db/tags_seed.sql](db/tags_seed.sql) in the SQL Editor. The existing database was created with an earlier version and has been brought up to date with the files in [db/migrations/](db/migrations/), in order (002 to 013, with the tag seed after 006). Read each file's header first: 005 must be applied only after the API that goes with it is deployed, and 009 (needs PostgreSQL 15 or newer), 010, 011, 012 and 013 must be applied before the API that goes with them is deployed. The tag seed can be re-run at any time to add new suggested tags.
    **Site admins** (people who can change or remove any book's cover; not the same as group admins) are a short list kept in the database and added by hand, because nothing in the app can create one. In the SQL Editor, find the person by their sign-in email:
    ```sql
    insert into site_admins (user_id) select id from profiles where lower(email) = lower('someone@example.com');
@@ -116,7 +117,7 @@ src/pages/               screens: Home, GroupPage, GroupSettings, NewChallenge, 
 src/components/          BookPicker (Open Library search), LogBookDialog, ConsiderDialog,
                          Logo, ReadingProgressDialog, PromptChat, TagPicker, TagChips, BookTagsDialog,
                          ChallengeEditor, BookCover, RichText (notes with links), MiniBar, PersonLink,
-                         ChatMessage, Avatar (photo, icon or initial), EditProfileDialog, BackToTop, FindItLinks, CoverDialog, PhotoCropper (frames photos and covers)
+                         ChatMessage, Avatar (photo, icon or initial), EditProfileDialog, BackToTop, FindItLinks, CoverDialog, PhotoCropper (frames photos and covers), TutorialDialog
 ```
 
 ## Ideas for next steps

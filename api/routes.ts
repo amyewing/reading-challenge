@@ -83,9 +83,23 @@ route('PUT', '/api/me', async ({ q, body }) => {
     text(body.email, 'Email', { max: 320 }),
   ]);
   // The name on file (a name you chose yourself is kept when Kinde's details change), and whether
-  // you are a site admin (someone who can change any book's cover)
-  const [me] = await q('select display_name, is_site_admin() as is_site_admin from profiles where id = current_user_id()');
-  return { ok: true, displayName: me?.display_name ?? null, isSiteAdmin: me?.is_site_admin === true };
+  // you are a site admin (someone who can change any book's cover), and whether you have closed the
+  // first-time tutorial
+  const [me] = await q(
+    'select display_name, is_site_admin() as is_site_admin, tutorial_seen_at is not null as tutorial_seen from profiles where id = current_user_id()',
+  );
+  return {
+    ok: true,
+    displayName: me?.display_name ?? null,
+    isSiteAdmin: me?.is_site_admin === true,
+    tutorialSeen: me?.tutorial_seen === true,
+  };
+});
+
+// Closing the first-time tutorial: remembered on the account, so it isn't shown again on any device
+route('POST', '/api/me/tutorial-seen', async ({ q }) => {
+  await q('update profiles set tutorial_seen_at = coalesce(tutorial_seen_at, now()) where id = current_user_id()');
+  return { ok: true };
 });
 
 /** A profile picture: a small JPEG as a data URL (the app shrinks it before sending), or null to remove it. */
