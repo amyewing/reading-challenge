@@ -403,3 +403,13 @@ input[type="range"]:focus { outline-offset: 4px; }
 .pill-button:focus-visible { outline: 3px solid var(--sage-mid); outline-offset: 2px; }
 .pill-button.has-new { background: var(--gold); border: 1px solid var(--gold-line); color: var(--ink); }
 .icon-bubble { flex: none; }
+
+/* Find it: links out to other sites */
+.find-it { position: relative; display: inline-flex; }
+.find-it-list {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 5; list-style: none; margin: 0; padding: 0.35rem;
+  min-width: 11rem; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-hover);
+}
+.find-it-list a { display: block; padding: 0.35rem 0.65rem; border-radius: 8px; text-decoration: none; font-size: 0.9rem; }
+.find-it-list a:hover, .find-it-list a:focus-visible { background: var(--sage); }
+.find-it-inline { margin: 0.5rem 0 0; }

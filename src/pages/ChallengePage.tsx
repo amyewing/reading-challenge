@@ -15,6 +15,7 @@ import BookTagsDialog from '../components/BookTagsDialog';
 import Avatar from '../components/Avatar';
 import BookCover from '../components/BookCover';
 import TagChips from '../components/TagChips';
+import FindItLinks from '../components/FindItLinks';
 import { ChatBubbleIcon } from '../components/Icon';
 
 /** The date stamp on a finished prompt: "Read 14 Mar 2027" (latest finish date), or just "Read" */
@@ -193,6 +194,7 @@ export default function ChallengePage() {
             {tags.some((t) => t.mine) ? 'Edit tags' : '+ Tags'}
           </button>
           {button}
+          <FindItLinks book={book} />
         </div>
         {thread}
       </>

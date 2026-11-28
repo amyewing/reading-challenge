@@ -6563,7 +6563,7 @@ route("GET", "/api/challenges/:challengeId", async ({ q, params }) => {
   );
   const entries = await q(
     `select e.id, e.prompt_id, e.user_id, e.finished_on::text, e.rating, e.notes,
-            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url) as books,
+            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key) as books,
             json_build_object('display_name', p.display_name) as profiles
      from entries e
      join books b on b.id = e.book_id
@@ -6574,7 +6574,7 @@ route("GET", "/api/challenges/:challengeId", async ({ q, params }) => {
   );
   const considerations = await q(
     `select c.id, c.prompt_id, c.user_id, c.reason, c.created_at, c.status, c.progress, c.started_on::text,
-            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url) as books,
+            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key) as books,
             json_build_object('display_name', p.display_name) as profiles
      from considerations c
      join books b on b.id = c.book_id
@@ -6606,7 +6606,7 @@ route("GET", "/api/challenges/:challengeId", async ({ q, params }) => {
             count(*) filter (where m.user_id <> current_user_id()
                                and m.created_at > coalesce(r.last_read_at, '-infinity'))::int as unread,
             case when b.id is null then null
-                 else json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url) end as books
+                 else json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key) end as books
      from prompt_messages m
      left join books b on b.id = m.book_id
      left join prompt_message_reads r on r.prompt_id = m.prompt_id and r.user_id = current_user_id()
@@ -6873,7 +6873,7 @@ route("GET", "/api/people/:userId", async ({ q, params }) => {
   const [person] = await q(
     `select p.id, p.display_name, p.avatar, p.avatar_preset, p.featured_note,
             case when b.id is null then null
-                 else json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url) end as featured_book
+                 else json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key) end as featured_book
      from profiles p left join books b on b.id = p.featured_book_id
      where p.id = $1`,
     [params.userId]
@@ -6904,7 +6904,7 @@ route("GET", "/api/people/:userId", async ({ q, params }) => {
   );
   const entries = await q(
     `select e.id, e.finished_on::text, e.rating, e.notes, e.created_at,
-            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url) as books,
+            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key) as books,
             pr.id as prompt_id, pr.title as prompt_title, c.id as challenge_id, c.title as challenge_title
      from entries e
      join books b on b.id = e.book_id
@@ -6916,7 +6916,7 @@ route("GET", "/api/people/:userId", async ({ q, params }) => {
   );
   const considerations = await q(
     `select k.id, k.status, k.progress, k.started_on::text, k.reason, k.created_at,
-            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url) as books,
+            json_build_object('id', b.id, 'title', b.title, 'author', b.author, 'cover_url', b.cover_url, 'open_library_key', b.open_library_key) as books,
             pr.id as prompt_id, pr.title as prompt_title, c.id as challenge_id, c.title as challenge_title
      from considerations k
      join books b on b.id = k.book_id
@@ -6988,7 +6988,7 @@ route("POST", "/api/books/search", async ({ q, body }) => {
   const words = text(body.q, "Search", { max: 200 });
   const like = words ? `%${words.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
   return q(
-    `select b.id, b.title, b.author, b.cover_url,
+    `select b.id, b.title, b.author, b.cover_url, b.open_library_key,
             coalesce((select json_agg(x order by x.count desc, x.name) from (
                 select t.id, t.name, t.category, count(*)::int as count, bool_or(bt.user_id = current_user_id()) as mine
                 from book_tags bt join tags t on t.id = bt.tag_id

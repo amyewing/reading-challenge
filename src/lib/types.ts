@@ -46,6 +46,8 @@ export interface Book {
   title: string;
   author: string | null;
   cover_url: string | null;
+  /** Open Library work, e.g. "/works/OL45804W" (books picked from Open Library have one) */
+  open_library_key?: string | null;
 }
 
 export interface Entry {

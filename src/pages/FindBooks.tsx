@@ -5,6 +5,7 @@ import { refreshTags, useTags } from '../lib/tags';
 import type { Book, BookTag } from '../lib/types';
 import BookCover from '../components/BookCover';
 import ChatMessage from '../components/ChatMessage';
+import FindItLinks from '../components/FindItLinks';
 import TagChips from '../components/TagChips';
 import TagPicker from '../components/TagPicker';
 import BookTagsDialog from '../components/BookTagsDialog';
@@ -170,6 +171,7 @@ export default function FindBooks() {
                     </button>
                   )}
                   <TagChips tags={b.tags} max={8} active={tagIds} onEdit={() => setTagging(b)} />
+                  <FindItLinks book={b} variant="inline" />
                   {b.reads.length > 0 && (
                     <ul className="activity">
                       {b.reads.map((r, i) => (

@@ -7,6 +7,7 @@ import type { Book, Consideration, Role } from '../lib/types';
 import Avatar from '../components/Avatar';
 import BookCover from '../components/BookCover';
 import EditProfileDialog from '../components/EditProfileDialog';
+import FindItLinks from '../components/FindItLinks';
 import MiniBar from '../components/MiniBar';
 import ReadingProgressDialog from '../components/ReadingProgressDialog';
 import RichText from '../components/RichText';
@@ -159,6 +160,7 @@ export default function ProfilePage() {
             <h3>{person.featured_book.title}</h3>
             {person.featured_book.author && <p className="muted">{person.featured_book.author}</p>}
             {person.featured_note && <RichText text={person.featured_note} clamp className="featured-note" />}
+            <FindItLinks book={person.featured_book} variant="inline" />
           </div>
           {isMe && <button className="link small" onClick={() => setEditing(true)}>Change</button>}
         </section>
