@@ -428,3 +428,7 @@ button.cover-add.cover-sm { font-size: 1.1rem; }
 .cover-choice:hover:not(:disabled) { border-color: var(--green); background: var(--paper-soft); }
 .cover-choice:focus-visible { outline: 3px solid var(--sage-mid); outline-offset: 2px; }
 .cover-choice img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; display: block; }
+
+/* Framing a book cover: a portrait rectangle instead of a round avatar */
+.cropper-view.rect { width: min(220px, 100%); border-radius: 6px; }
+.cropper-view.rect::after { border-radius: 0; box-shadow: inset 0 0 0 2px var(--gold); }

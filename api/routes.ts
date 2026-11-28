@@ -1,5 +1,5 @@
 import { verifyRequest } from './auth';
-import { asUser, type Query } from './db';
+import { asPublic, asUser, type Query } from './db';
 import { HttpError, badRequest, notFound } from './http';
 
 export interface ApiRequest {
@@ -11,6 +11,8 @@ export interface ApiRequest {
 export interface ApiResponse {
   status: number;
   body?: unknown;
+  /** A picture instead of JSON (base64), with how long browsers may keep it */
+  binary?: { contentType: string; base64: string; cacheSeconds: number };
 }
 
 type Params = Record<string, string>;
@@ -905,6 +907,17 @@ route('PUT', '/api/books/:bookId/cover', async ({ q, params, body }) => {
   return { ok: true };
 });
 
+/** Upload a cover: a small JPEG (the app crops it to 300 x 450 first) */
+route('POST', '/api/books/:bookId/cover-image', async ({ q, params, body }) => {
+  const image = body.image;
+  if (typeof image !== 'string' || !new RegExp('^data:image/jpeg;base64,[A-Za-z0-9+/=]+$').test(image)) {
+    throw badRequest('The cover must be a JPEG image.');
+  }
+  if (image.length > 120_000) throw badRequest('That picture is too large.');
+  await q('select upload_book_cover($1, $2)', [params.bookId, image]);
+  return { ok: true };
+});
+
 /** Take a cover off, so the book counts as missing one again */
 route('DELETE', '/api/books/:bookId/cover', async ({ q, params }) => {
   await q('select remove_book_cover($1)', [params.bookId]);
@@ -1026,6 +1039,20 @@ export async function handle(req: ApiRequest): Promise<ApiResponse> {
   try {
     const path = req.path.split('?')[0].replace(/\/+$/, '') || '/';
     if (path === '/api/health') return { status: 200, body: { ok: true } };
+
+    // An uploaded cover picture. Public (no sign-in) so it can be used as an image address; the
+    // book's id is not guessable and covers are not private.
+    const coverMatch = req.method.toUpperCase() === 'GET' ? new RegExp(`^/api/covers/${UUID}$`).exec(path) : null;
+    if (coverMatch) {
+      const [row] = await asPublic((q) => q('select book_cover_image($1) as image', [coverMatch[1]]));
+      const image: string | undefined = row?.image;
+      if (!image) return { status: 404, body: { error: 'No cover.' } };
+      return {
+        status: 200,
+        // The address changes whenever the cover does (?v=...), so it can be kept for a long time
+        binary: { contentType: 'image/jpeg', base64: image.slice(image.indexOf(',') + 1), cacheSeconds: 31_536_000 },
+      };
+    }
 
     let matched: { handler: Handler; params: Params } | null = null;
     let pathExists = false;

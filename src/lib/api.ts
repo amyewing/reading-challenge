@@ -12,6 +12,9 @@ export function setTokenGetter(fn: TokenGetter) {
 // a DigitalOcean function reached at /api/core/api (set VITE_API_BASE at build time).
 const BASE = import.meta.env.VITE_API_BASE ?? '';
 
+/** Address of something the API serves directly, such as an uploaded cover picture ("/api/covers/...") */
+export const apiUrl = (path: string) => BASE + path;
+
 export async function api<T = unknown>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
   const token = await getToken();
   const res = await fetch(BASE + path, {

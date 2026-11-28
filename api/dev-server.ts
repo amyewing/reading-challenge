@@ -17,6 +17,11 @@ http
       headers: req.headers as Record<string, string | undefined>,
       body: Buffer.concat(chunks).toString('utf8'),
     });
+    if (result.binary) {
+      res.writeHead(result.status, { 'Content-Type': result.binary.contentType, 'Cache-Control': 'no-store' });
+      res.end(Buffer.from(result.binary.base64, 'base64'));
+      return;
+    }
     res.writeHead(result.status, { 'Content-Type': 'application/json' });
     res.end(result.body === undefined ? '' : JSON.stringify(result.body));
   })

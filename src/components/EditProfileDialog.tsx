@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import type { Book } from '../lib/types';
 import { AVATAR_PRESETS, PresetIcon } from '../lib/avatarPresets';
 import Avatar from './Avatar';
+import { cropToJpegs } from '../lib/avatar';
 import PhotoCropper from './PhotoCropper';
 import BookPicker, { bookPayload, isComplete, pickedFromBook, type PickedBook } from './BookPicker';
 
@@ -81,7 +82,7 @@ export default function EditProfileDialog({ person, onClose, onSaved }: Props) {
       <div className="overlay">
         <div className="dialog">
           <h2>Frame your photo</h2>
-          <PhotoCropper file={cropping} onUse={usePhoto} onCancel={() => setCropping(null)} />
+          <PhotoCropper file={cropping} encode={cropToJpegs} onUse={usePhoto} onCancel={() => setCropping(null)} />
         </div>
       </div>
     );

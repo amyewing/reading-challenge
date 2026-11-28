@@ -27,6 +27,17 @@ export async function main(event: WebEvent) {
   const body = http.isBase64Encoded ? Buffer.from(raw, 'base64').toString('utf8') : raw;
 
   const result = await handle({ method: http.method ?? 'GET', path: http.path || '/', headers, body });
+  if (result.binary) {
+    // A picture: the platform decodes a base64 body for a non-text content type
+    return {
+      statusCode: result.status,
+      headers: {
+        'Content-Type': result.binary.contentType,
+        'Cache-Control': `public, max-age=${result.binary.cacheSeconds}, immutable`,
+      },
+      body: result.binary.base64,
+    };
+  }
   return {
     statusCode: result.status,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },

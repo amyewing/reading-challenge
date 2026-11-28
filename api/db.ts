@@ -43,6 +43,27 @@ export async function asUser<T>(userId: string, fn: (q: Query) => Promise<T>): P
   }
 }
 
+/**
+ * Run `fn` as the restricted app role with nobody signed in. Only for the few public endpoints
+ * (such as an uploaded book cover): everything else the role can reach needs a signed-in user.
+ */
+export async function asPublic<T>(fn: (q: Query) => Promise<T>): Promise<T> {
+  const client = await getPool().connect();
+  const q: Query = async (text, params) => (await client.query(text, params as any[])).rows;
+  try {
+    await client.query('begin');
+    await client.query("select set_config('role', 'app_user', true)");
+    const result = await fn(q);
+    await client.query('commit');
+    return result;
+  } catch (e) {
+    await client.query('rollback').catch(() => undefined);
+    throw toHttpError(e);
+  } finally {
+    client.release();
+  }
+}
+
 /** Turn database errors into messages people can act on. */
 function toHttpError(e: any): unknown {
   if (e instanceof HttpError) return e;

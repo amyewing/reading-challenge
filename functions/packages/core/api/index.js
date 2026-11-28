@@ -6217,6 +6217,22 @@ async function asUser(userId, fn) {
     client.release();
   }
 }
+async function asPublic(fn) {
+  const client = await getPool().connect();
+  const q = async (text2, params) => (await client.query(text2, params)).rows;
+  try {
+    await client.query("begin");
+    await client.query("select set_config('role', 'app_user', true)");
+    const result = await fn(q);
+    await client.query("commit");
+    return result;
+  } catch (e) {
+    await client.query("rollback").catch(() => void 0);
+    throw toHttpError(e);
+  } finally {
+    client.release();
+  }
+}
 function toHttpError(e) {
   if (e instanceof HttpError) return e;
   switch (e?.code) {
@@ -6956,6 +6972,15 @@ route("PUT", "/api/books/:bookId/cover", async ({ q, params, body }) => {
   await q("select set_book_cover($1, $2)", [params.bookId, url]);
   return { ok: true };
 });
+route("POST", "/api/books/:bookId/cover-image", async ({ q, params, body }) => {
+  const image = body.image;
+  if (typeof image !== "string" || !new RegExp("^data:image/jpeg;base64,[A-Za-z0-9+/=]+$").test(image)) {
+    throw badRequest("The cover must be a JPEG image.");
+  }
+  if (image.length > 12e4) throw badRequest("That picture is too large.");
+  await q("select upload_book_cover($1, $2)", [params.bookId, image]);
+  return { ok: true };
+});
 route("DELETE", "/api/books/:bookId/cover", async ({ q, params }) => {
   await q("select remove_book_cover($1)", [params.bookId]);
   return { ok: true };
@@ -7055,6 +7080,17 @@ async function handle(req) {
   try {
     const path = req.path.split("?")[0].replace(/\/+$/, "") || "/";
     if (path === "/api/health") return { status: 200, body: { ok: true } };
+    const coverMatch = req.method.toUpperCase() === "GET" ? new RegExp(`^/api/covers/${UUID}$`).exec(path) : null;
+    if (coverMatch) {
+      const [row] = await asPublic((q) => q("select book_cover_image($1) as image", [coverMatch[1]]));
+      const image = row?.image;
+      if (!image) return { status: 404, body: { error: "No cover." } };
+      return {
+        status: 200,
+        // The address changes whenever the cover does (?v=...), so it can be kept for a long time
+        binary: { contentType: "image/jpeg", base64: image.slice(image.indexOf(",") + 1), cacheSeconds: 31536e3 }
+      };
+    }
     let matched = null;
     let pathExists = false;
     for (const [method, pattern, keys, handler2] of routes) {
@@ -7096,6 +7132,16 @@ async function main(event) {
   const raw = http.body ?? "";
   const body = http.isBase64Encoded ? Buffer.from(raw, "base64").toString("utf8") : raw;
   const result = await handle({ method: http.method ?? "GET", path: http.path || "/", headers, body });
+  if (result.binary) {
+    return {
+      statusCode: result.status,
+      headers: {
+        "Content-Type": result.binary.contentType,
+        "Cache-Control": `public, max-age=${result.binary.cacheSeconds}, immutable`
+      },
+      body: result.binary.base64
+    };
+  }
   return {
     statusCode: result.status,
     headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },

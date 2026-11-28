@@ -110,6 +110,13 @@ create table site_admins (
   added_at  timestamptz not null default now()
 );
 
+-- Uploaded cover pictures (db/migrations/012_uploaded_covers.sql). Only the functions below touch this.
+create table book_covers (
+  book_id     uuid primary key references books(id) on delete cascade,
+  image       text not null check (image like 'data:image/jpeg;base64,%' and length(image) <= 120000),
+  created_at  timestamptz not null default now()
+);
+
 alter table profiles add constraint profiles_featured_book_fk
   foreign key (featured_book_id) references books(id) on delete set null;
 
@@ -381,7 +388,31 @@ returns boolean language sql stable security definer set search_path = public as
   select exists (select 1 from site_admins where user_id = current_user_id());
 $$;
 
--- Choose a cover from Open Library for a book (only if it has none, or you may manage its cover)
+-- Upload a cover (only if the book has none, or you may manage its cover)
+create or replace function upload_book_cover(p_book uuid, p_image text)
+returns void language plpgsql security definer set search_path = public as $$
+declare b books%rowtype;
+begin
+  if current_user_id() is null then raise exception 'Not signed in'; end if;
+  if p_image is null or p_image !~ '^data:image/jpeg;base64,[A-Za-z0-9+/=]+$' or length(p_image) > 120000 then
+    raise exception 'That picture is not valid or is too large.';
+  end if;
+  select * into b from books where id = p_book for update;
+  if not found then raise exception 'That book was not found.'; end if;
+  if b.cover_url is not null and b.cover_added_by is distinct from current_user_id() and not is_site_admin() then
+    raise exception 'This book already has a cover. Only the person who added it, or a site admin, can change it.';
+  end if;
+  insert into book_covers (book_id, image) values (p_book, p_image)
+  on conflict (book_id) do update set image = excluded.image, created_at = now();
+  -- a new address each time, so browsers don't keep showing the old picture
+  update books
+  set cover_url = '/api/covers/' || p_book::text || '?v=' || floor(extract(epoch from clock_timestamp()))::bigint::text,
+      cover_added_by = current_user_id(), cover_updated_at = now()
+  where id = p_book;
+end;
+$$;
+
+-- Choosing an Open Library cover or removing the cover also drops any uploaded picture
 create or replace function set_book_cover(p_book uuid, p_url text)
 returns void language plpgsql security definer set search_path = public as $$
 declare b books%rowtype;
@@ -395,13 +426,13 @@ begin
   if b.cover_url is not null and b.cover_added_by is distinct from current_user_id() and not is_site_admin() then
     raise exception 'This book already has a cover. Only the person who added it, or a site admin, can change it.';
   end if;
+  delete from book_covers where book_id = p_book;
   update books
   set cover_url = p_url, cover_added_by = current_user_id(), cover_updated_at = now()
   where id = p_book;
 end;
 $$;
 
--- Take a cover off a book (the person who added it, or a site admin)
 create or replace function remove_book_cover(p_book uuid)
 returns void language plpgsql security definer set search_path = public as $$
 declare b books%rowtype;
@@ -413,10 +444,17 @@ begin
   if b.cover_added_by is distinct from current_user_id() and not is_site_admin() then
     raise exception 'Only the person who added this cover, or a site admin, can remove it.';
   end if;
+  delete from book_covers where book_id = p_book;
   update books
   set cover_url = null, cover_added_by = null, cover_updated_at = now()
   where id = p_book;
 end;
+$$;
+
+-- The uploaded picture for a book, for the public cover address (works without a signed-in user)
+create or replace function book_cover_image(p_book uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select image from book_covers where book_id = p_book;
 $$;
 
 -- Hand a group to another member: they become owner, the old owner an admin
@@ -523,6 +561,9 @@ create policy books_select on books for select using ((select current_user_id())
 alter table site_admins enable row level security;
 create policy site_admins_select on site_admins for select using (user_id = (select current_user_id()));
 
+-- book_covers: no policies, so the app role sees nothing; only the functions above read and write it
+alter table book_covers enable row level security;
+
 -- entries: group members see everyone's; you manage only your own;
 -- books can only be logged against launched challenges
 create policy entries_select on entries for select using (is_group_member(challenge_group(challenge_id)));
@@ -612,5 +653,6 @@ grant select, insert, update, delete on all tables in schema public to app_user;
 grant execute on all functions in schema public to app_user;
 
 -- Nobody can change the list of site admins from the app
+revoke all on book_covers from app_user;
 revoke all on site_admins from app_user;
 grant select on site_admins to app_user;

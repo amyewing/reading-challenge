@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMe } from '../App';
+import { apiUrl } from '../lib/api';
 import type { Book } from '../lib/types';
 import CoverDialog from './CoverDialog';
 
@@ -17,7 +18,9 @@ export default function BookCover({ book, small, onChanged }: Props) {
   const me = useMe();
   const [open, setOpen] = useState(false);
   const cls = `cover ${small ? 'cover-sm' : ''}`;
-  const image = book?.cover_url ? <img className={cls} src={book.cover_url} alt="" loading="lazy" /> : null;
+  // Covers people uploaded are served by our API ("/api/covers/..."); the rest are Open Library addresses
+  const src = book?.cover_url?.startsWith('/api/') ? apiUrl(book.cover_url) : book?.cover_url;
+  const image = src ? <img className={cls} src={src} alt="" loading="lazy" /> : null;
   const blank = <div className={`${cls} cover-blank`}>{book?.title?.[0] ?? '?'}</div>;
 
   // Only books from the catalog (with an id) can have their cover fixed, and only where the page asks for it
